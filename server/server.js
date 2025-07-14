@@ -9,6 +9,9 @@ import { clerkWebhooks, stripeWebhooks } from './controllers/webhooks.js'
 import educatorRouter from './routes/educatorRoutes.js'
 import courseRouter from './routes/courseRoute.js'
 
+import adminRoutes from './routes/adminRoutes.js';
+
+
 // Initialize Express
 const app = express()
 
@@ -20,13 +23,16 @@ await connectCloudinary()
 app.use(cors())
 app.use(clerkMiddleware())
 
+app.use(express.json()) // Move this here as global middleware
+
 // Routes
+app.use('/api/admin', adminRoutes);
 app.get('/', (req, res) => res.send("API Working"))
-app.post('/clerk', express.json() , clerkWebhooks)
+app.post('/clerk', clerkWebhooks)  // Remove duplicate express.json()
 app.post('/stripe', express.raw({ type: 'application/json' }), stripeWebhooks)
-app.use('/api/educator', express.json(), educatorRouter)
-app.use('/api/course', express.json(), courseRouter)
-app.use('/api/user', express.json(), userRouter)
+app.use('/api/educator', educatorRouter)  // Remove duplicate express.json()
+app.use('/api/course', courseRouter)      // Remove duplicate express.json()
+app.use('/api/user', userRouter)          // Remove duplicate express.json()
 
 // Port
 const PORT = process.env.PORT || 5000

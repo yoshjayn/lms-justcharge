@@ -1,8 +1,19 @@
 import express from 'express'
-import { addUserRating, getUserCourseProgress, getUserData, purchaseCourse, updateUserCourseProgress, userEnrolledCourses } from '../controllers/userController.js';
-
+import { submitQRPaymentEnrollment, checkEnrollmentStatus, addUserRating, getUserCourseProgress, getUserData, purchaseCourse, updateUserCourseProgress, userEnrolledCourses } from '../controllers/userController.js';
+import multer from 'multer';
+import { protectUser } from '../middlewares/authMiddleware.js';
 
 const userRouter = express.Router()
+const upload = multer({
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  }
+});
+// QR Code payment enrollment
+userRouter.post('/enroll-qr', upload.single('screenshot'), protectUser, submitQRPaymentEnrollment);
+
+// Check enrollment status
+userRouter.get('/enrollment-status/:courseId', protectUser, checkEnrollmentStatus);
 
 // Get user Data
 userRouter.get('/data', getUserData)

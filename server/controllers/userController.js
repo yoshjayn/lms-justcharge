@@ -3,8 +3,97 @@ import { CourseProgress } from "../models/CourseProgress.js"
 import { Purchase } from "../models/Purchase.js"
 import User from "../models/User.js"
 import stripe from "stripe"
+import PendingEnrollment from '../models/PendingEnrollment.js';
+import { v2 as cloudinary } from 'cloudinary';
 
+// New QR Code Payment Enrollment
+export const submitQRPaymentEnrollment = async (req, res) => {
+  try {
+    const userId = req.auth.userId;
+    const { courseId, transactionId } = req.body;
+    const screenshotFile = req.file;
 
+    if (!screenshotFile) {
+      return res.json({ success: false, message: 'Payment screenshot is required' });
+    }
+
+    if (!transactionId) {
+      return res.json({ success: false, message: 'Transaction ID is required' });
+    }
+
+    // Check if course exists
+    const course = await Course.findById(courseId);
+    if (!course) {
+      return res.json({ success: false, message: 'Course not found' });
+    }
+
+    // Check if user already has a pending enrollment for this course
+    const existingPending = await PendingEnrollment.findOne({
+      userId,
+      courseId,
+      status: 'pending'
+    });
+
+    if (existingPending) {
+      return res.json({ success: false, message: 'You already have a pending enrollment for this course' });
+    }
+
+    // Check if user is already enrolled
+    const user = await User.findById(userId);
+    if (user.enrolledCourses.includes(courseId)) {
+      return res.json({ success: false, message: 'You are already enrolled in this course' });
+    }
+
+    // Upload screenshot to cloudinary
+    const imageUpload = await cloudinary.uploader.upload(screenshotFile.path);
+
+    // Create pending enrollment
+    const pendingEnrollment = new PendingEnrollment({
+      userId,
+      courseId,
+      paymentScreenshot: imageUpload.secure_url,
+      transactionId
+    });
+
+    await pendingEnrollment.save();
+
+    res.json({ 
+      success: true, 
+      message: 'Enrollment request submitted successfully. Please wait for admin approval.',
+      enrollmentId: pendingEnrollment._id
+    });
+
+  } catch (error) {
+    res.json({ success: false, message: error.message });
+  }
+};
+
+// Check enrollment status
+export const checkEnrollmentStatus = async (req, res) => {
+  try {
+    const userId = req.auth.userId;
+    const { courseId } = req.params;
+
+    const pendingEnrollment = await PendingEnrollment.findOne({
+      userId,
+      courseId
+    }).sort({ createdAt: -1 });
+
+    if (!pendingEnrollment) {
+      return res.json({ success: false, message: 'No enrollment request found' });
+    }
+
+    res.json({ 
+      success: true, 
+      enrollment: pendingEnrollment
+    });
+
+  } catch (error) {
+    res.json({ success: false, message: error.message });
+  }
+};
+
+//  -------------------------------------------------------------------
 
 // Get User Data
 export const getUserData = async (req, res) => {
