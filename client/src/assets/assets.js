@@ -42,9 +42,10 @@ import profile_img from './profile_img.png'
 import profile_img2 from './profile_img2.png'
 import profile_img3 from './profile_img3.png'
 import lesson_icon from './lesson_icon.svg'
-
+import QR_Code_Example from './QR_Code_Example.jpg'
 
 export const assets = {
+    QR_Code_Example,
     logo,
     search_icon,
     sketch,

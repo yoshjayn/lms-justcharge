@@ -16,8 +16,10 @@ export const AppContextProvider = (props) => {
     const { getToken } = useAuth()
     const { user } = useUser()
 
+    const [isAdmin, setIsAdmin] = useState(false);
+
     const [showLogin, setShowLogin] = useState(false)
-    const [isEducator,setIsEducator] = useState(false)
+    const [isEducator, setIsEducator] = useState(false)
     const [allCourses, setAllCourses] = useState([])
     const [userData, setUserData] = useState(null)
     const [enrolledCourses, setEnrolledCourses] = useState([])
@@ -50,6 +52,12 @@ export const AppContextProvider = (props) => {
                 setIsEducator(true)
             }
 
+            if (user.publicMetadata.role === 'admin') {
+                setIsAdmin(true);
+                setIsEducator(true); // Admin can also access educator features
+            }
+
+            
             const token = await getToken();
 
             const { data } = await axios.get(backendUrl + '/api/user/data',
@@ -153,7 +161,7 @@ export const AppContextProvider = (props) => {
         enrolledCourses, fetchUserEnrolledCourses,
         calculateChapterTime, calculateCourseDuration,
         calculateRating, calculateNoOfLectures,
-        isEducator,setIsEducator
+        isEducator, setIsEducator
     }
 
     return (

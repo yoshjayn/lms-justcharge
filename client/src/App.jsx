@@ -15,6 +15,8 @@ import { ToastContainer } from 'react-toastify'
 import Player from './pages/student/Player'
 import MyEnrollments from './pages/student/MyEnrollments'
 import Loading from './components/student/Loading'
+import QRPaymentPage from './pages/student/QRPaymentPage' // NEW IMPORT
+import EnrollmentStatus from './pages/student/EnrollmentStatus' // NEW IMPORT
 
 const App = () => {
 
@@ -26,6 +28,7 @@ const App = () => {
       {/* Render Student Navbar only if not on educator routes */}
       {!isEducatorRoute && <Navbar />}
       <Routes>
+        {/* Student Routes */}
         <Route path="/" element={<Home />} />
         <Route path="/course/:id" element={<CourseDetails />} />
         <Route path="/course-list" element={<CoursesList />} />
@@ -33,6 +36,12 @@ const App = () => {
         <Route path="/my-enrollments" element={<MyEnrollments />} />
         <Route path="/player/:courseId" element={<Player />} />
         <Route path="/loading/:path" element={<Loading />} />
+        
+        {/* NEW ROUTES FOR QR PAYMENT SYSTEM */}
+        <Route path="/qr-payment/:courseId" element={<QRPaymentPage />} />
+        <Route path="/enrollment-status/:courseId" element={<EnrollmentStatus />} />
+        
+        {/* Educator Routes */}
         <Route path='/educator' element={<Educator />}>
           <Route path='/educator' element={<Dashboard />} />
           <Route path='add-course' element={<AddCourse />} />
