@@ -26,6 +26,34 @@ const MyCourses = () => {
 
   }
 
+  const toggleCourseStatus = async (courseId, currentStatus) => {
+    try {
+      const token = await getToken()
+      
+      const { data } = await axios.patch(
+        backendUrl + '/api/educator/toggle-course-status', 
+        { courseId, isPublished: !currentStatus },
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+
+      if (data.success) {
+        // Update the local state to reflect the change
+        setCourses(prevCourses => 
+          prevCourses.map(course => 
+            course._id === courseId 
+              ? { ...course, isPublished: !currentStatus }
+              : course
+          )
+        )
+        toast.success(`Course ${!currentStatus ? 'published' : 'unpublished'} successfully`)
+      } else {
+        toast.error(data.message)
+      }
+    } catch (error) {
+      toast.error(error.message)
+    }
+  }
+
   useEffect(() => {
     if (isEducator) {
       fetchEducatorCourses()
@@ -43,7 +71,7 @@ const MyCourses = () => {
                 <th className="px-4 py-3 font-semibold truncate">All Courses</th>
                 <th className="px-4 py-3 font-semibold truncate">Earnings</th>
                 <th className="px-4 py-3 font-semibold truncate">Students</th>
-                <th className="px-4 py-3 font-semibold truncate">Published On</th>
+                <th className="px-4 py-3 font-semibold truncate">Course Status</th>
               </tr>
             </thead>
             <tbody className="text-sm text-gray-500">
@@ -56,7 +84,24 @@ const MyCourses = () => {
                   <td className="px-4 py-3">{currency} {Math.floor(course.enrolledStudents.length * (course.coursePrice - course.discount * course.coursePrice / 100))}</td>
                   <td className="px-4 py-3">{course.enrolledStudents.length}</td>
                   <td className="px-4 py-3">
-                    {new Date(course.createdAt).toLocaleDateString()}
+                    <div className="flex items-center">
+                      {/* Toggle Switch */}
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={course.isPublished}
+                          onChange={() => toggleCourseStatus(course._id, course.isPublished)}
+                          className="sr-only peer"
+                        />
+                        <div className="w-11 h-6 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                      </label>
+                      {/* Status Label */}
+                      <span className={`ml-3 text-sm font-medium ${
+                        course.isPublished ? 'text-blue-600' : 'text-gray-500'
+                      }`}>
+                        {course.isPublished ? 'Live' : 'Private'}
+                      </span>
+                    </div>
                   </td>
                 </tr>
               ))}
