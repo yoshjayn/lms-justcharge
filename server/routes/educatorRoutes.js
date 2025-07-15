@@ -1,10 +1,14 @@
 import express from 'express'
-import { addCourse, educatorDashboardData, getEducatorCourses, getEnrolledStudentsData, updateRoleToEducator } from '../controllers/educatorController.js';
+import { toggleCourseStatus, addCourse, educatorDashboardData, getEducatorCourses, getEnrolledStudentsData, updateRoleToEducator } from '../controllers/educatorController.js';
 import upload from '../configs/multer.js';
 import { protectEducator } from '../middlewares/authMiddleware.js';
 
 
 const educatorRouter = express.Router()
+
+
+// Toggle Course Status (Published/Unpublished)
+educatorRouter.patch('/toggle-course-status', protectEducator, toggleCourseStatus)
 
 // Add Educator Role 
 educatorRouter.get('/update-role', updateRoleToEducator)

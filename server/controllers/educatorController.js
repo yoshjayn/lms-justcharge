@@ -4,6 +4,38 @@ import { Purchase } from '../models/Purchase.js';
 import User from '../models/User.js';
 import { clerkClient } from '@clerk/express'
 
+
+// Toggle Course Status (Published/Unpublished)
+export const toggleCourseStatus = async (req, res) => {
+    try {
+        const { courseId, isPublished } = req.body
+        const educatorId = req.auth.userId
+
+        // Verify that the course belongs to the authenticated educator
+        const course = await Course.findOne({ _id: courseId, educator: educatorId })
+
+        if (!course) {
+            return res.json({ success: false, message: 'Course not found or unauthorized' })
+        }
+
+        // Update the course status
+        course.isPublished = isPublished
+        await course.save()
+
+        res.json({ 
+            success: true, 
+            message: `Course ${isPublished ? 'published' : 'unpublished'} successfully`,
+            course: {
+                _id: course._id,
+                isPublished: course.isPublished
+            }
+        })
+
+    } catch (error) {
+        res.json({ success: false, message: error.message })
+    }
+}
+
 // update role to educator
 export const updateRoleToEducator = async (req, res) => {
 

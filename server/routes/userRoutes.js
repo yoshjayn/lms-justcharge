@@ -1,6 +1,6 @@
 import express from 'express'
 import { submitQRPaymentEnrollment, checkEnrollmentStatus, addUserRating, getUserCourseProgress, getUserData, purchaseCourse, updateUserCourseProgress, userEnrolledCourses } from '../controllers/userController.js';
-import multer from 'multer';
+import upload from '../configs/multer.js'; 
 import { protectUser } from '../middlewares/authMiddleware.js';
 
 const userRouter = express.Router()
