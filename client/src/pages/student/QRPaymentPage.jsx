@@ -117,7 +117,7 @@ const QRPaymentPage = () => {
 
             const response = await axios.post(`${backendUrl}/api/user/enroll-qr`, formData, {
                 headers: {
-                    'Content-Type': 'multipart/form-data',
+                    // 'Content-Type': 'multipart/form-data',
                     'Authorization': `Bearer ${token}`
                 }
             });

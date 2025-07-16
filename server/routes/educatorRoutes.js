@@ -1,29 +1,29 @@
 import express from 'express'
-import { toggleCourseStatus, addCourse, educatorDashboardData, getEducatorCourses, getEnrolledStudentsData, updateRoleToEducator } from '../controllers/educatorController.js';
+import { 
+    toggleCourseStatus, 
+    addCourse, 
+    educatorDashboardData, 
+    getEducatorCourses, 
+    getEnrolledStudentsData, 
+    updateRoleToEducator,
+    getPendingEnrollments,
+    processEnrollmentRequest
+} from '../controllers/educatorController.js';
 import upload from '../configs/multer.js';
 import { protectEducator } from '../middlewares/authMiddleware.js';
 
-
 const educatorRouter = express.Router()
 
-
-// Toggle Course Status (Published/Unpublished)
+// Existing Educator Routes
 educatorRouter.patch('/toggle-course-status', protectEducator, toggleCourseStatus)
-
-// Add Educator Role 
 educatorRouter.get('/update-role', updateRoleToEducator)
-
-// Add Courses 
 educatorRouter.post('/add-course', upload.single('image'), protectEducator, addCourse)
-
-// Get Educator Courses 
 educatorRouter.get('/courses', protectEducator, getEducatorCourses)
-
-// Get Educator Dashboard Data
 educatorRouter.get('/dashboard', protectEducator, educatorDashboardData)
-
-// Get Educator Students Data
 educatorRouter.get('/enrolled-students', protectEducator, getEnrolledStudentsData)
 
+// Pending Enrollments Routes (for Students Enrolled page)
+educatorRouter.get('/pending-enrollments', protectEducator, getPendingEnrollments)
+educatorRouter.post('/process-enrollment/:enrollmentId', protectEducator, processEnrollmentRequest)
 
 export default educatorRouter;

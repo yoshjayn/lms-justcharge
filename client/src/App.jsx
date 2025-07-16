@@ -15,11 +15,10 @@ import { ToastContainer } from 'react-toastify'
 import Player from './pages/student/Player'
 import MyEnrollments from './pages/student/MyEnrollments'
 import Loading from './components/student/Loading'
-import QRPaymentPage from './pages/student/QRPaymentPage' // NEW IMPORT
-import EnrollmentStatus from './pages/student/EnrollmentStatus' // NEW IMPORT
+import QRPaymentPage from './pages/student/QRPaymentPage'
+import EnrollmentStatus from './pages/student/EnrollmentStatus'
 
 const App = () => {
-
   const isEducatorRoute = useMatch('/educator/*');
 
   return (
@@ -37,7 +36,7 @@ const App = () => {
         <Route path="/player/:courseId" element={<Player />} />
         <Route path="/loading/:path" element={<Loading />} />
         
-        {/* NEW ROUTES FOR QR PAYMENT SYSTEM */}
+        {/* QR Payment System Routes */}
         <Route path="/qr-payment/:courseId" element={<QRPaymentPage />} />
         <Route path="/enrollment-status/:courseId" element={<EnrollmentStatus />} />
         
