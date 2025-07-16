@@ -3,6 +3,7 @@ import {
     submitQRPaymentEnrollment, 
     checkEnrollmentStatus, 
     getMyPendingEnrollments,
+    removeRejectedEnrollment,  // ADD THIS LINE
     addUserRating, 
     getUserCourseProgress, 
     getUserData, 
@@ -23,6 +24,9 @@ userRouter.get('/enrollment-status/:courseId', protectUser, checkEnrollmentStatu
 
 // Get user's pending enrollments
 userRouter.get('/my-pending-enrollments', protectUser, getMyPendingEnrollments);
+
+// Remove rejected enrollment - ADD THIS LINE
+userRouter.delete('/remove-rejected-enrollment/:enrollmentId', protectUser, removeRejectedEnrollment);
 
 // User routes
 userRouter.get('/data', getUserData)

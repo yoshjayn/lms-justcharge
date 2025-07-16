@@ -245,7 +245,7 @@ export const purchaseCourse = async (req, res) => {
         const purchaseData = {
             courseId: courseData._id,
             userId,
-            amount: courseData.price,
+            amount: courseData.coursePrice,
             date: Date.now()
         }
 
@@ -264,7 +264,7 @@ export const purchaseCourse = async (req, res) => {
                     product_data: {
                         name: courseData.courseTitle
                     },
-                    unit_amount: courseData.price * 100
+                    unit_amount: courseData.coursePrice * 100
                 },
                 quantity: 1
             }],
@@ -398,3 +398,63 @@ export const addUserRating = async (req, res) => {
     }
 
 }
+
+
+// Remove rejected enrollment
+export const removeRejectedEnrollment = async (req, res) => {
+  try {
+    const { enrollmentId } = req.params;
+    const userId = req.auth.userId;
+
+    // Find the enrollment
+    const enrollment = await PendingEnrollment.findById(enrollmentId);
+
+    if (!enrollment) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Enrollment not found' 
+      });
+    }
+
+    // Verify ownership
+    if (enrollment.userId.toString() !== userId) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Unauthorized: This enrollment does not belong to you' 
+      });
+    }
+
+    // Only allow removal of rejected enrollments
+    if (enrollment.status !== 'rejected') {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Only rejected enrollments can be removed' 
+      });
+    }
+
+    // Delete the enrollment
+    await PendingEnrollment.findByIdAndDelete(enrollmentId);
+
+    // If there's a Cloudinary image, delete it
+    if (enrollment.cloudinaryPublicId) {
+      try {
+        await cloudinary.uploader.destroy(enrollment.cloudinaryPublicId);
+      } catch (cloudinaryError) {
+        console.error('Error deleting Cloudinary image:', cloudinaryError);
+        // Continue anyway - the enrollment record is deleted
+      }
+    }
+
+    res.json({ 
+      success: true, 
+      message: 'Rejected enrollment removed successfully' 
+    });
+
+  } catch (error) {
+    console.error('Error removing rejected enrollment:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server error while removing enrollment' 
+    });
+  }
+};
