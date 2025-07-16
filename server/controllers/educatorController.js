@@ -188,7 +188,7 @@ export const getPendingEnrollments = async (req, res) => {
             status 
         })
         .populate('userId', 'name email imageUrl')
-        .populate('courseId', 'courseTitle courseThumbnail price')
+        .populate('courseId', 'courseTitle courseThumbnail coursePrice')
         .sort({ createdAt: -1 })
         .limit(limit * 1)
         .skip((page - 1) * limit);
@@ -250,11 +250,11 @@ export const processEnrollmentRequest = async (req, res) => {
             userData.enrolledCourses.push(courseData._id);
             await userData.save();
 
-            // Create purchase record for tracking
+            // Create purchase record for tracking - FIX: Use coursePrice instead of price
             await Purchase.create({
                 userId: pendingEnrollment.userId,
                 courseId: pendingEnrollment.courseId,
-                amount: courseData.price,
+                amount: courseData.coursePrice, // Fixed: Use coursePrice from Course model
                 status: 'completed',
                 paymentMethod: 'qr_code',
                 transactionId: pendingEnrollment.transactionId
