@@ -1,17 +1,20 @@
-import React, { useContext, useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { AppContext } from '../../context/AppContext';
+
+import React, { useState, useEffect } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@clerk/clerk-react';
 import axios from 'axios';
+import { toast } from 'react-toastify';
+import Loading from '../../components/student/Loading';
 
 const EnrollmentStatus = () => {
   const { courseId } = useParams();
-  const [enrollmentData, setEnrollmentData] = useState(null);
-  const [courseData, setCourseData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  
-  const { backendUrl } = useContext(AppContext);
+  const navigate = useNavigate();
   const { getToken } = useAuth();
+  const [enrollmentData, setEnrollmentData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [removing, setRemoving] = useState(false);
+
+  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
 
   useEffect(() => {
     fetchEnrollmentStatus();
@@ -20,50 +23,73 @@ const EnrollmentStatus = () => {
   const fetchEnrollmentStatus = async () => {
     try {
       const token = await getToken();
-      
-      // Get enrollment status
-      const enrollmentResponse = await axios.get(
+      const response = await axios.get(
         `${backendUrl}/api/user/enrollment-status/${courseId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
-      // Get course details
-      const courseResponse = await axios.get(`${backendUrl}/api/course/${courseId}`);
-      
-      if (enrollmentResponse.data.success) {
-        setEnrollmentData(enrollmentResponse.data.enrollment);
+      if (response.data.success) {
+        setEnrollmentData(response.data.enrollment);
+      } else {
+        setEnrollmentData(null);
       }
-      
-      if (courseResponse.data.success) {
-        setCourseData(courseResponse.data.courseData);
-      }
-      
     } catch (error) {
       console.error('Error fetching enrollment status:', error);
+      setEnrollmentData(null);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleRemoveRejectedEnrollment = async () => {
+    if (!enrollmentData || enrollmentData.status !== 'rejected') return;
+
+    setRemoving(true);
+    
+    try {
+      const token = await getToken();
+      const response = await axios.delete(
+        `${backendUrl}/api/user/remove-rejected-enrollment/${enrollmentData._id}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (response.data.success) {
+        toast.success('Rejected enrollment removed successfully');
+        // Redirect back to course details
+        navigate(`/course/${courseId}`);
+      } else {
+        toast.error(response.data.message);
+      }
+    } catch (error) {
+      console.error('Error removing enrollment:', error);
+      toast.error('Error removing enrollment');
+    } finally {
+      setRemoving(false);
+    }
+  };
+
   if (loading) {
-    return <div className="flex justify-center items-center h-64">Loading...</div>;
+    return <Loading />;
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-6">Enrollment Status</h1>
-      
-      {courseData && (
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-2">{courseData.courseTitle}</h2>
-          <p className="text-gray-600">Price: ₹{courseData.price}</p>
-        </div>
-      )}
+    <div className="max-w-4xl mx-auto p-6 min-h-screen">
+      <div className="mb-6">
+        <Link 
+          to={`/course/${courseId}`}
+          className="text-blue-600 hover:text-blue-800 text-sm"
+        >
+          ← Back to Course Details
+        </Link>
+      </div>
+
+      <h1 className="text-3xl font-bold text-gray-900 mb-8">Enrollment Status</h1>
 
       {enrollmentData ? (
         <div className="bg-white rounded-lg shadow-md p-6">
-          <div className={`p-4 rounded-lg mb-4 ${
-            enrollmentData.status === 'pending' ? 'bg-yellow-100' :
+          <div className={`p-4 rounded-lg mb-6 ${
+            enrollmentData.status === 'pending' ? 
+            'bg-yellow-100' :
             enrollmentData.status === 'approved' ? 'bg-green-100' :
             'bg-red-100'
           }`}>
@@ -72,15 +98,20 @@ const EnrollmentStatus = () => {
             </h3>
             
             {enrollmentData.status === 'pending' && (
-              <p>Your enrollment request is being reviewed by our admin team. We'll notify you once it's processed.</p>
+              <div>
+                <p>Your enrollment request is being reviewed by our admin team. We'll notify you once it's processed.</p>
+                <p className="text-sm text-gray-600 mt-2">
+                  ⏳ Please be patient while we review your payment screenshot and transaction details.
+                </p>
+              </div>
             )}
             
             {enrollmentData.status === 'approved' && (
               <div>
-                <p className="mb-3">Congratulations! Your enrollment has been approved.</p>
+                <p className="mb-3">🎉 Congratulations! Your enrollment has been approved.</p>
                 <Link 
                   to={`/player/${courseId}`}
-                  className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+                  className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition-colors inline-block"
                 >
                   Start Learning
                 </Link>
@@ -89,31 +120,107 @@ const EnrollmentStatus = () => {
             
             {enrollmentData.status === 'rejected' && (
               <div>
-                <p className="mb-2">Unfortunately, your enrollment request was rejected.</p>
+                <p className="mb-2">❌ Unfortunately, your enrollment request was rejected.</p>
                 {enrollmentData.rejectionReason && (
-                  <p className="text-sm"><strong>Reason:</strong> {enrollmentData.rejectionReason}</p>
+                  <p className="text-sm mb-4">
+                    <strong>Reason:</strong> {enrollmentData.rejectionReason}
+                  </p>
                 )}
+                <div className="flex gap-3">
+                  <Link 
+                    to={`/qr-payment/${courseId}`}
+                    className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors text-sm"
+                  >
+                    Try Enrolling Again
+                  </Link>
+                  <button 
+                    onClick={handleRemoveRejectedEnrollment}
+                    disabled={removing}
+                    className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition-colors text-sm disabled:opacity-50"
+                  >
+                    {removing ? 'Removing...' : 'Remove This Request'}
+                  </button>
+                </div>
               </div>
             )}
           </div>
 
-          <div className="text-sm text-gray-600">
-            <p>Transaction ID: {enrollmentData.transactionId}</p>
-            <p>Submitted: {new Date(enrollmentData.submittedAt).toLocaleString()}</p>
-            {enrollmentData.processedAt && (
-              <p>Processed: {new Date(enrollmentData.processedAt).toLocaleString()}</p>
-            )}
+          {/* Transaction Details */}
+          <div className="grid md:grid-cols-2 gap-6">
+            <div>
+              <h4 className="font-medium text-gray-900 mb-3">Transaction Details</h4>
+              <div className="space-y-2 text-sm text-gray-600">
+                <p><strong>Transaction ID:</strong> {enrollmentData.transactionId}</p>
+                <p><strong>Submitted:</strong> {new Date(enrollmentData.createdAt).toLocaleString()}</p>
+                {enrollmentData.processedAt && (
+                  <p><strong>Processed:</strong> {new Date(enrollmentData.processedAt).toLocaleString()}</p>
+                )}
+                {enrollmentData.processedBy && (
+                  <p><strong>Processed By:</strong> Admin</p>
+                )}
+              </div>
+            </div>
+
+            {/* Payment Screenshot */}
+            <div>
+              <h4 className="font-medium text-gray-900 mb-3">Payment Screenshot</h4>
+              <img
+                src={enrollmentData.paymentScreenshot}
+                alt="Payment Screenshot"
+                className="w-full max-w-sm rounded-lg border border-gray-200"
+              />
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="mt-6 pt-4 border-t border-gray-200">
+            <div className="flex gap-3">
+              <Link
+                to={`/course/${courseId}`}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
+              >
+                View Course Details
+              </Link>
+              
+              {enrollmentData.status === 'rejected' && (
+                <Link
+                  to={`/qr-payment/${courseId}`}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                >
+                  Submit New Request
+                </Link>
+              )}
+              
+              {enrollmentData.status === 'approved' && (
+                <Link
+                  to={`/player/${courseId}`}
+                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                >
+                  Access Course
+                </Link>
+              )}
+            </div>
           </div>
         </div>
       ) : (
         <div className="bg-white rounded-lg shadow-md p-6">
-          <p>No enrollment request found for this course.</p>
-          <Link 
-            to={`/course/${courseId}`}
-            className="text-blue-600 hover:text-blue-800 mt-2 inline-block"
-          >
-            Go back to course details
-          </Link>
+          <div className="text-center">
+            <p className="text-gray-600 mb-4">No enrollment request found for this course.</p>
+            <div className="space-y-3">
+              <Link 
+                to={`/course/${courseId}`}
+                className="text-blue-600 hover:text-blue-800 block"
+              >
+                Go back to course details
+              </Link>
+              <Link 
+                to={`/qr-payment/${courseId}`}
+                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors inline-block"
+              >
+                Submit Enrollment Request
+              </Link>
+            </div>
+          </div>
         </div>
       )}
     </div>

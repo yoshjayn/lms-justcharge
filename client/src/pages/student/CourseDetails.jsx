@@ -1,3 +1,5 @@
+// Updated CourseDetails.jsx with proper structure and closed tags
+
 import React, { useContext, useEffect, useState } from 'react';
 import Footer from '../../components/student/Footer';
 import { assets } from '../../assets/assets';
@@ -68,6 +70,31 @@ const CourseDetails = () => {
     }
   };
 
+  // Remove rejected enrollment function
+  const removeRejectedEnrollment = async () => {
+    try {
+      if (!enrollmentStatus || enrollmentStatus.status !== 'rejected') return;
+
+      const token = await getToken();
+      const response = await axios.delete(
+        `${backendUrl}/api/user/remove-rejected-enrollment/${enrollmentStatus._id}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (response.data.success) {
+        toast.success('Enrollment removed successfully');
+        setEnrollmentStatus(null);
+        // Refresh the page or update state
+        window.location.reload();
+      } else {
+        toast.error(response.data.message);
+      }
+    } catch (error) {
+      console.error('Error removing enrollment:', error);
+      toast.error('Error removing enrollment');
+    }
+  };
+
   // Toggle course section accordion
   const toggleSection = (index) => {
     setOpenSections((prev) => ({
@@ -104,13 +131,18 @@ const CourseDetails = () => {
     }
   };
 
-  // Get enrollment button text and style
+  // Get enrollment button text and style with proper rejection handling
   const getEnrollmentButtonConfig = () => {
-    if (isAlreadyEnrolled) {
+    // Check if user is actually enrolled (approved and in enrolled courses)
+    const isReallyEnrolled = isAlreadyEnrolled && (!enrollmentStatus || enrollmentStatus.status === 'approved');
+    
+    if (isReallyEnrolled) {
       return {
         text: 'Already Enrolled',
         style: 'bg-green-600 text-white cursor-default',
-        disabled: true
+        disabled: true,
+        showContinueLearning: true,
+        showRemoveOption: false
       };
     }
 
@@ -118,7 +150,9 @@ const CourseDetails = () => {
       return {
         text: 'Enrollment Pending Approval',
         style: 'bg-yellow-500 text-white cursor-not-allowed',
-        disabled: true
+        disabled: true,
+        showContinueLearning: false,
+        showRemoveOption: false
       };
     }
 
@@ -126,14 +160,18 @@ const CourseDetails = () => {
       return {
         text: 'Try Enroll Again',
         style: 'bg-red-600 text-white hover:bg-red-700',
-        disabled: false
+        disabled: false,
+        showContinueLearning: false,
+        showRemoveOption: true
       };
     }
 
     return {
-      text: `Enroll Now - ${currency}${courseData?.price || 0}`,
+      text: `Enroll Now - ${currency}${courseData?.coursePrice || 0}`,
       style: 'bg-blue-600 text-white hover:bg-blue-700',
-      disabled: false
+      disabled: false,
+      showContinueLearning: false,
+      showRemoveOption: false
     };
   };
 
@@ -157,7 +195,7 @@ const CourseDetails = () => {
   const buttonConfig = getEnrollmentButtonConfig();
 
   return (
-    <>
+    <div>
       <div className="flex md:flex-row flex-col-reverse gap-10 relative items-start justify-between md:px-36 px-8 md:pt-20 pt-10 text-left">
         <div className="absolute top-0 left-0 w-full h-section-height -z-1 bg-gradient-to-b from-cyan-100/70"></div>
 
@@ -179,128 +217,111 @@ const CourseDetails = () => {
                 <img 
                   key={i} 
                   src={i < Math.floor(calculateRating(courseData)) ? assets.star : assets.star_blank} 
-                  alt=''
+                  alt='star'
                   className='w-3.5 h-3.5' 
                 />
               ))}
             </div>
             <p className='text-blue-600'>
-              ({courseData.courseRatings.length} {courseData.courseRatings.length > 1 ? 'ratings' : 'rating'})
-            </p>
-            <p>
-              {courseData.enrolledStudents.length} {courseData.enrolledStudents.length > 1 ? 'students' : 'student'}
+              ({courseData.courseRatings ? courseData.courseRatings.length : 0} {courseData.courseRatings && courseData.courseRatings.length > 1 ? 'ratings' : 'rating'})
             </p>
           </div>
 
-          <p className='text-sm'>
-            Course by <span className='text-blue-600 underline'>{courseData.educator.name}</span>
-          </p>
+          {/* Course Details */}
+          <div className="text-sm text-gray-600 space-y-1">
+            <p>📚 {calculateNoOfLectures(courseData)} lessons</p>
+            <p>⏱️ {humanizeDuration(calculateCourseDuration(courseData) * 1000, { round: true })}</p>
+            <p>👨‍🎓 {courseData.enrolledStudents ? courseData.enrolledStudents.length : 0} students enrolled</p>
+          </div>
 
-          {/* Course Structure */}
-          <div className="pt-8 text-gray-800">
-            <h2 className="text-xl font-semibold">Course Structure</h2>
-            <div className="pt-5">
-              {courseData.courseContent.map((chapter, index) => (
-                <div key={index} className="border border-gray-300 bg-white mb-2 rounded">
-                  <div
-                    className="flex items-center justify-between px-4 py-3 cursor-pointer select-none"
+          {/* Course Preview Video */}
+          {courseData.coursePreview && (
+            <div className="mt-6">
+              <h3 className="text-lg font-semibold mb-3">Course Preview</h3>
+              <YouTube
+                videoId={courseData.coursePreview}
+                opts={{
+                  width: '100%',
+                  height: '300',
+                  playerVars: {
+                    autoplay: 0,
+                  },
+                }}
+              />
+            </div>
+          )}
+
+          {/* Course Curriculum */}
+          <div className="mt-8">
+            <h3 className="text-xl font-semibold mb-4">Course Curriculum</h3>
+            <div className="space-y-2">
+              {courseData.courseSections && courseData.courseSections.length > 0 ? (
+                courseData.courseSections.map((section, index) => (
+                <div key={index} className="border border-gray-200 rounded-lg">
+                  <button
                     onClick={() => toggleSection(index)}
+                    className="w-full p-4 text-left hover:bg-gray-50 transition-colors"
                   >
-                    <div className="flex items-center gap-2">
-                      <img 
-                        src={assets.down_arrow_icon} 
-                        alt="arrow icon" 
-                        className={`transform transition-transform ${openSections[index] ? "rotate-180" : ""}`} 
-                      />
-                      <p className="font-medium md:text-base text-sm">{chapter.chapterTitle}</p>
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-medium">{section.sectionTitle}</h4>
+                      <span className="text-gray-500">
+                        {openSections[index] ? '▼' : '▶'}
+                      </span>
                     </div>
-                    <p className="text-sm md:text-default">
-                      {chapter.chapterContent.length} lectures - {calculateChapterTime(chapter)}
-                    </p>
-                  </div>
-
-                  <div className={`overflow-hidden transition-all duration-300 ${
-                    openSections[index] ? "max-h-96" : "max-h-0"
-                  }`}>
-                    <div className="px-4 pb-3">
-                      {chapter.chapterContent.map((lecture, lectureIndex) => (
-                        <div key={lectureIndex} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
-                          <div className="flex items-center gap-2">
-                            <img src={assets.play_icon} alt="play icon" className="w-4 h-4" />
-                            <p className="text-sm text-gray-700">{lecture.lectureTitle}</p>
-                            {lecture.isPreviewFree && (
-                              <span className="text-xs bg-green-100 text-green-600 px-2 py-1 rounded">
-                                Free Preview
+                    <div className="flex items-center mt-2 text-sm text-gray-600">
+                      <span>{section.sectionData ? section.sectionData.length : 0} lessons</span>
+                      <span className="mx-2">•</span>
+                      <span>{section.sectionData ? humanizeDuration(calculateChapterTime(section.sectionData) * 1000, { round: true }) : '0 min'}</span>
+                    </div>
+                  </button>
+                  
+                  {openSections[index] && (
+                    <div className="px-4 pb-4">
+                      {section.sectionData && section.sectionData.length > 0 ? (
+                        section.sectionData.map((lesson, lessonIndex) => (
+                          <div key={lessonIndex} className="py-2 border-b border-gray-100 last:border-b-0">
+                            <div className="flex justify-between items-center">
+                              <span className="text-sm">{lesson.lectureTitle}</span>
+                              <span className="text-xs text-gray-500">
+                                {Math.floor(lesson.lectureDuration / 60)}:{String(lesson.lectureDuration % 60).padStart(2, '0')}
                               </span>
-                            )}
+                            </div>
                           </div>
-                          <p className="text-xs text-gray-500">
-                            {humanizeDuration(lecture.lectureDuration * 60 * 1000, { units: ["m"] })}
-                          </p>
-                        </div>
-                      ))}
+                        ))
+                      ) : (
+                        <p className="text-sm text-gray-500">No lessons available</p>
+                      )}
                     </div>
-                  </div>
+                  )}
                 </div>
-              ))}
+              ))
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-gray-500">No course curriculum available</p>
+                </div>
+              )}}
             </div>
           </div>
         </div>
 
-        {/* Right Side - Course Preview and Enrollment */}
-        <div className="md:w-96 w-full bg-white border rounded-lg shadow-lg overflow-hidden z-10">
-          {/* Video/Thumbnail Preview */}
-          <div className="aspect-video">
-            {playerData ? (
-              <YouTube 
-                videoId={playerData.videoId} 
-                opts={{ playerVars: { autoplay: 1 } }} 
-                iframeClassName='w-full aspect-video' 
-              />
-            ) : (
-              <img src={courseData.courseThumbnail} alt={courseData.courseTitle} className="w-full h-full object-cover" />
-            )}
+        {/* Right Side - Course Purchase Card */}
+        <div className="md:w-80 w-full bg-white rounded-lg shadow-lg p-6 sticky top-4">
+          <div className="relative">
+            <img 
+              src={courseData.courseThumbnail} 
+              alt={courseData.courseTitle}
+              className="w-full h-48 object-cover rounded-lg"
+            />
+            <div className="absolute top-4 right-4 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm">
+              {currency}{courseData.coursePrice}
+            </div>
           </div>
 
-          <div className="p-5">
-            {/* Price and Offer */}
-            <div className="flex items-center gap-2">
-              <img className="w-3.5" src={assets.time_left_clock_icon} alt="time left clock icon" />
-              <p className="text-red-500">
-                <span className="font-medium">5 days</span> left at this price!
-              </p>
-            </div>
-
-            <div className="flex gap-3 items-center pt-2">
-              <p className="text-gray-800 md:text-4xl text-2xl font-semibold">
-                {currency}{(courseData.price - courseData.discount * courseData.price / 100).toFixed(2)}
-              </p>
-              <p className="md:text-lg text-gray-500 line-through">{currency}{courseData.price}</p>
-              <p className="md:text-lg text-gray-500">{courseData.discount}% off</p>
-            </div>
-
-            {/* Course Stats */}
-            <div className="flex items-center text-sm md:text-default gap-4 pt-2 md:pt-4 text-gray-500">
-              <div className="flex items-center gap-1">
-                <img src={assets.star} alt="star icon" />
-                <p>{calculateRating(courseData)}</p>
-              </div>
-              <div className="h-4 w-px bg-gray-500/40"></div>
-              <div className="flex items-center gap-1">
-                <img src={assets.time_clock_icon} alt="clock icon" />
-                <p>{calculateCourseDuration(courseData)}</p>
-              </div>
-              <div className="h-4 w-px bg-gray-500/40"></div>
-              <div className="flex items-center gap-1">
-                <img src={assets.lesson_icon} alt="lesson icon" />
-                <p>{calculateNoOfLectures(courseData)} lessons</p>
-              </div>
-            </div>
-
-            {/* Enrollment Status Message */}
-            {enrollmentStatus && (
-              <div className={`mt-4 p-3 rounded-lg text-sm ${
-                enrollmentStatus.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+          {/* Enrollment Status Display */}
+          {enrollmentStatus && (
+            <div className={`mt-4 p-3 rounded-lg text-sm ${
+              enrollmentStatus.status === 'pending' ? 
+                'bg-yellow-100 text-yellow-800' :
                 enrollmentStatus.status === 'rejected' ? 'bg-red-100 text-red-800' :
                 'bg-green-100 text-green-800'
               }`}>
@@ -326,7 +347,7 @@ const CourseDetails = () => {
               </div>
             )}
 
-            {/* Enrollment Button - Now navigates to QR payment page */}
+            {/* Enrollment Button */}
             <button 
               onClick={handleEnrollClick}
               disabled={buttonConfig.disabled}
@@ -334,6 +355,16 @@ const CourseDetails = () => {
             >
               {buttonConfig.text}
             </button>
+
+            {/* Remove Rejected Enrollment Button */}
+            {buttonConfig.showRemoveOption && (
+              <button 
+                onClick={removeRejectedEnrollment}
+                className="mt-2 w-full py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors text-sm"
+              >
+                Remove Rejected Request
+              </button>
+            )}
 
             {/* Course Features */}
             <div className="pt-6">
@@ -347,8 +378,8 @@ const CourseDetails = () => {
               </ul>
             </div>
 
-            {/* Quick Links for Enrolled Users */}
-            {isAlreadyEnrolled && (
+            {/* Continue Learning Button for Enrolled Users */}
+            {buttonConfig.showContinueLearning && (
               <div className="pt-4 border-t border-gray-200 mt-4">
                 <button
                   onClick={() => navigate(`/player/${courseData._id}`)}
@@ -360,54 +391,20 @@ const CourseDetails = () => {
             )}
 
             {/* Quick Link for Pending/Approved Status */}
-            {enrollmentStatus && (
+            {enrollmentStatus && enrollmentStatus.status !== 'rejected' && (
               <div className="pt-4">
                 <button
                   onClick={() => navigate(`/enrollment-status/${courseData._id}`)}
                   className="w-full py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors text-sm"
                 >
-                  View Enrollment Status
+                  View Status Details
                 </button>
               </div>
             )}
-          </div>
         </div>
       </div>
-
-      {/* Course Description Section */}
-      <div className="md:px-36 px-8 py-16">
-        <div className="max-w-4xl">
-          <h2 className="text-2xl font-semibold text-gray-800 mb-6">Course Description</h2>
-          <div 
-            className="prose prose-lg max-w-none text-gray-600"
-            dangerouslySetInnerHTML={{ __html: courseData.courseDescription }}
-          />
-        </div>
-      </div>
-
-      {/* Instructor Section */}
-      <div className="md:px-36 px-8 py-16 bg-gray-50">
-        <div className="max-w-4xl">
-          <h2 className="text-2xl font-semibold text-gray-800 mb-6">Meet Your Instructor</h2>
-          <div className="flex items-start gap-6">
-            <img 
-              src={courseData.educator.imageUrl || assets.profile_img} 
-              alt={courseData.educator.name}
-              className="w-20 h-20 rounded-full object-cover"
-            />
-            <div>
-              <h3 className="text-xl font-semibold text-gray-800">{courseData.educator.name}</h3>
-              <p className="text-gray-600 mt-2">
-                Experienced instructor with expertise in {courseData.courseTitle.split(' ').slice(0, 3).join(' ')}.
-                Passionate about teaching and helping students achieve their learning goals.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <Footer />
-    </>
+    </div>
   );
 };
 
