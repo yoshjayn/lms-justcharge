@@ -9,7 +9,7 @@ import CallToAction from '../../components/student/CallToAction';
 const Home = () => {
 
   return (
-    <div className="flex flex-col items-center space-y-7 text-center">
+    <div className="bg-[#F9ECE2] flex flex-col items-center space-y-7 text-center bg-[#F9ECE2]">
       <Hero />
       <Companies />
       <CoursesSection />

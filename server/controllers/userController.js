@@ -7,6 +7,161 @@ import PendingEnrollment from '../models/PendingEnrollment.js';
 import { v2 as cloudinary } from 'cloudinary';
 
 // New QR Code Payment Enrollment
+// export const submitQRPaymentEnrollment = async (req, res) => {
+//   try {
+//     console.log('Request received:', {
+//       body: req.body,
+//       file: req.file ? 'File present' : 'No file',
+//       userId: req.auth?.userId
+//     });
+
+//     const userId = req.auth.userId;
+//     const { courseId, transactionId } = req.body;
+//     const screenshotFile = req.file;
+
+//     // Enhanced validation with detailed error messages
+//     if (!screenshotFile) {
+//       console.log('No file received in request');
+//       return res.status(400).json({ 
+//         success: false, 
+//         message: 'Payment screenshot is required. Please select a file.' 
+//       });
+//     }
+
+//     if (!courseId) {
+//       return res.status(400).json({ 
+//         success: false, 
+//         message: 'Course ID is missing.' 
+//       });
+//     }
+
+//     if (!transactionId || !transactionId.trim()) {
+//       return res.status(400).json({ 
+//         success: false, 
+//         message: 'Transaction ID is required.' 
+//       });
+//     }
+
+//     if (!userId) {
+//       return res.status(401).json({ 
+//         success: false, 
+//         message: 'User authentication required.' 
+//       });
+//     }
+
+//     console.log('File details:', {
+//       originalname: screenshotFile.originalname,
+//       mimetype: screenshotFile.mimetype,
+//       size: screenshotFile.size,
+//       path: screenshotFile.path
+//     });
+
+//     // Check if course exists
+//     const course = await Course.findById(courseId);
+//     if (!course) {
+//       return res.status(404).json({ 
+//         success: false, 
+//         message: 'Course not found.' 
+//       });
+//     }
+
+//     // Check if user already has a pending enrollment for this course
+//     const existingPending = await PendingEnrollment.findOne({
+//       userId,
+//       courseId,
+//       status: 'pending'
+//     });
+
+//     if (existingPending) {
+//       return res.status(409).json({ 
+//         success: false, 
+//         message: 'You already have a pending enrollment for this course.' 
+//       });
+//     }
+
+//     // Check if user is already enrolled
+//     const user = await User.findById(userId);
+//     if (!user) {
+//       return res.status(404).json({ 
+//         success: false, 
+//         message: 'User not found.' 
+//       });
+//     }
+
+//     if (user.enrolledCourses.includes(courseId)) {
+//       return res.status(409).json({ 
+//         success: false, 
+//         message: 'You are already enrolled in this course.' 
+//       });
+//     }
+
+//     console.log('Uploading to Cloudinary...');
+
+//     // Upload screenshot to cloudinary with error handling
+//     const imageUpload = await cloudinary.uploader.upload(screenshotFile.path, {
+//       resource_type: "image",
+//       folder: "payment_screenshots",
+//       transformation: [
+//         { width: 1000, height: 1000, crop: "limit" },
+//         { quality: "auto" }
+//       ]
+//     });
+
+//     console.log('Cloudinary upload successful:', imageUpload.secure_url);
+
+//     // Create pending enrollment
+//     const pendingEnrollment = new PendingEnrollment({
+//       userId,
+//       courseId,
+//       paymentScreenshot: imageUpload.secure_url,
+//       cloudinaryPublicId: imageUpload.public_id,
+//       transactionId: transactionId.trim()
+//     });
+
+//     await pendingEnrollment.save();
+
+//     console.log('Enrollment request saved successfully');
+
+//     res.status(201).json({ 
+//       success: true, 
+//       message: 'Enrollment request submitted successfully. Please wait for admin approval.',
+//       enrollmentId: pendingEnrollment._id
+//     });
+
+//   } catch (error) {
+//     console.error('Error in submitQRPaymentEnrollment:', error);
+    
+//     // Handle specific Cloudinary errors
+//     if (error.message.includes('cloudinary')) {
+//       return res.status(500).json({ 
+//         success: false, 
+//         message: 'Failed to upload image. Please try again.' 
+//       });
+//     }
+    
+//     // Handle Multer errors
+//     if (error.code === 'LIMIT_FILE_SIZE') {
+//       return res.status(400).json({ 
+//         success: false, 
+//         message: 'File size too large. Maximum 5MB allowed.' 
+//       });
+//     }
+    
+//     if (error.message.includes('Only image files')) {
+//       return res.status(400).json({ 
+//         success: false, 
+//         message: 'Only image files are allowed.' 
+//       });
+//     }
+    
+//     res.status(500).json({ 
+//       success: false, 
+//       message: `Server error: ${error.message}` 
+//     });
+//   }
+// };
+
+// This handles retry enrollment requests by updating existing rejected enrollments
 export const submitQRPaymentEnrollment = async (req, res) => {
   try {
     console.log('Request received:', {
@@ -65,20 +220,6 @@ export const submitQRPaymentEnrollment = async (req, res) => {
       });
     }
 
-    // Check if user already has a pending enrollment for this course
-    const existingPending = await PendingEnrollment.findOne({
-      userId,
-      courseId,
-      status: 'pending'
-    });
-
-    if (existingPending) {
-      return res.status(409).json({ 
-        success: false, 
-        message: 'You already have a pending enrollment for this course.' 
-      });
-    }
-
     // Check if user is already enrolled
     const user = await User.findById(userId);
     if (!user) {
@@ -89,6 +230,34 @@ export const submitQRPaymentEnrollment = async (req, res) => {
     }
 
     if (user.enrolledCourses.includes(courseId)) {
+      return res.status(409).json({ 
+        success: false, 
+        message: 'You are already enrolled in this course.' 
+      });
+    }
+
+    // **UPDATED: Check for ANY existing enrollment for this user and course**
+    const existingEnrollment = await PendingEnrollment.findOne({
+      userId,
+      courseId
+    });
+
+    console.log('Existing enrollment check:', existingEnrollment ? {
+      id: existingEnrollment._id,
+      status: existingEnrollment.status,
+      transactionId: existingEnrollment.transactionId
+    } : 'No existing enrollment found');
+
+    // Prevent duplicate pending enrollments
+    if (existingEnrollment && existingEnrollment.status === 'pending') {
+      return res.status(409).json({ 
+        success: false, 
+        message: 'You already have a pending enrollment for this course.' 
+      });
+    }
+
+    // Prevent enrolling if already approved
+    if (existingEnrollment && existingEnrollment.status === 'approved') {
       return res.status(409).json({ 
         success: false, 
         message: 'You are already enrolled in this course.' 
@@ -109,18 +278,56 @@ export const submitQRPaymentEnrollment = async (req, res) => {
 
     console.log('Cloudinary upload successful:', imageUpload.secure_url);
 
-    // Create pending enrollment
-    const pendingEnrollment = new PendingEnrollment({
-      userId,
-      courseId,
-      paymentScreenshot: imageUpload.secure_url,
-      cloudinaryPublicId: imageUpload.public_id,
-      transactionId: transactionId.trim()
-    });
+    let pendingEnrollment;
 
-    await pendingEnrollment.save();
+    // **NEW LOGIC: Update existing rejected enrollment instead of creating new one**
+    if (existingEnrollment && existingEnrollment.status === 'rejected') {
+      console.log('Found existing rejected enrollment, updating it...');
+      
+      // Delete old image from Cloudinary if it exists
+      if (existingEnrollment.cloudinaryPublicId) {
+        try {
+          await cloudinary.uploader.destroy(existingEnrollment.cloudinaryPublicId);
+          console.log('Old image deleted from Cloudinary');
+        } catch (cloudinaryError) {
+          console.error('Error deleting old image from Cloudinary:', cloudinaryError);
+          // Continue anyway - we'll update with new image
+        }
+      }
 
-    console.log('Enrollment request saved successfully');
+      // Update the existing rejected enrollment
+      existingEnrollment.status = 'pending';
+      existingEnrollment.paymentScreenshot = imageUpload.secure_url;
+      existingEnrollment.cloudinaryPublicId = imageUpload.public_id;
+      existingEnrollment.transactionId = transactionId.trim();
+      existingEnrollment.createdAt = new Date(); // Update submission time
+      existingEnrollment.processedAt = null; // Clear processed time
+      existingEnrollment.processedBy = null; // Clear processed by
+      existingEnrollment.rejectionReason = null; // Clear rejection reason
+
+      await existingEnrollment.save();
+      pendingEnrollment = existingEnrollment;
+
+      console.log('Existing enrollment updated successfully:', {
+        id: pendingEnrollment._id,
+        status: pendingEnrollment.status,
+        transactionId: pendingEnrollment.transactionId
+      });
+    } else {
+      // **ORIGINAL LOGIC: Create new enrollment**
+      console.log('Creating new enrollment...');
+      
+      pendingEnrollment = new PendingEnrollment({
+        userId,
+        courseId,
+        paymentScreenshot: imageUpload.secure_url,
+        cloudinaryPublicId: imageUpload.public_id,
+        transactionId: transactionId.trim()
+      });
+
+      await pendingEnrollment.save();
+      console.log('New enrollment request saved successfully');
+    }
 
     res.status(201).json({ 
       success: true, 
@@ -186,21 +393,44 @@ export const checkEnrollmentStatus = async (req, res) => {
   }
 };
 
-// Get user's pending enrollments
+// Enhanced getMyPendingEnrollments function - ensures one tile per course
 export const getMyPendingEnrollments = async (req, res) => {
   try {
     const userId = req.auth.userId;
 
-    const pendingEnrollments = await PendingEnrollment.find({ userId })
-      .populate('courseId', 'courseTitle courseThumbnail price')
+    // Get ALL enrollments for the user
+    const allEnrollments = await PendingEnrollment.find({ userId })
+      .populate('courseId', 'courseTitle courseThumbnail coursePrice')
       .sort({ createdAt: -1 });
+
+    console.log('All enrollments found:', allEnrollments.length);
+
+    // Group by courseId and keep only the most recent enrollment per course
+    const uniqueEnrollments = [];
+    const seenCourseIds = new Set();
+
+    for (const enrollment of allEnrollments) {
+      const courseId = enrollment.courseId._id.toString();
+      
+      if (!seenCourseIds.has(courseId)) {
+        seenCourseIds.add(courseId);
+        uniqueEnrollments.push(enrollment);
+        
+        console.log(`Keeping enrollment for course: ${enrollment.courseId.courseTitle}, Status: ${enrollment.status}, ID: ${enrollment._id}`);
+      } else {
+        console.log(`Skipping duplicate enrollment for course: ${enrollment.courseId.courseTitle}, Status: ${enrollment.status}, ID: ${enrollment._id}`);
+      }
+    }
+
+    console.log('Final unique enrollments:', uniqueEnrollments.length);
 
     res.json({
       success: true,
-      enrollments: pendingEnrollments
+      enrollments: uniqueEnrollments
     });
 
   } catch (error) {
+    console.error('Error in getMyPendingEnrollments:', error);
     res.json({ success: false, message: error.message });
   }
 };

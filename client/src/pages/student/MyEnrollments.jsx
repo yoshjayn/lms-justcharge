@@ -1,4 +1,4 @@
-// Updated MyEnrollments.jsx component with remove functionality for rejected enrollments
+// MyEnrollments.jsx - Only remove the "Remove" button, keep everything else identical
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@clerk/clerk-react';
@@ -11,7 +11,7 @@ const MyEnrollments = () => {
   const { getToken } = useAuth();
   const [pendingEnrollments, setPendingEnrollments] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [removingId, setRemovingId] = useState(null);
+  // const [removingId, setRemovingId] = useState(null); // Removed - no longer needed
 
   const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
 
@@ -40,32 +40,7 @@ const MyEnrollments = () => {
     }
   };
 
-  const handleRemoveRejectedEnrollment = async (enrollmentId) => {
-    setRemovingId(enrollmentId);
-    
-    try {
-      const token = await getToken();
-      const response = await axios.delete(
-        `${backendUrl}/api/user/remove-rejected-enrollment/${enrollmentId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      if (response.data.success) {
-        toast.success('Rejected enrollment removed successfully');
-        // Remove from local state
-        setPendingEnrollments(prev => 
-          prev.filter(enrollment => enrollment._id !== enrollmentId)
-        );
-      } else {
-        toast.error(response.data.message);
-      }
-    } catch (error) {
-      console.error('Error removing enrollment:', error);
-      toast.error('Error removing enrollment');
-    } finally {
-      setRemovingId(null);
-    }
-  };
+  // handleRemoveRejectedEnrollment function removed - no longer needed
 
   const getStatusBadge = (status) => {
     const badges = {
@@ -90,6 +65,7 @@ const MyEnrollments = () => {
   }
 
   return (
+    <div className="bg-[#F9ECE2]">
     <div className="max-w-6xl mx-auto p-6 min-h-screen">
       <h1 className="text-3xl font-bold text-gray-900 mb-8">My Enrollments</h1>
 
@@ -166,21 +142,12 @@ const MyEnrollments = () => {
                   )}
                   
                   {enrollment.status === 'rejected' && (
-                    <div className="flex gap-2">
-                      <Link
-                        to={`/qr-payment/${enrollment.courseId._id}`}
-                        className="flex-1 bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 transition-colors text-center text-sm"
-                      >
-                        Try Again
-                      </Link>
-                      <button
-                        onClick={() => handleRemoveRejectedEnrollment(enrollment._id)}
-                        disabled={removingId === enrollment._id}
-                        className="flex-1 bg-red-600 text-white py-2 px-4 rounded hover:bg-red-700 transition-colors text-sm disabled:opacity-50"
-                      >
-                        {removingId === enrollment._id ? 'Removing...' : 'Remove'}
-                      </button>
-                    </div>
+                    <Link
+                      to={`/qr-payment/${enrollment.courseId._id}`}
+                      className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 transition-colors text-center block text-sm"
+                    >
+                      Try Again
+                    </Link>
                   )}
                 </div>
               </div>
@@ -189,7 +156,7 @@ const MyEnrollments = () => {
         </div>
       )}
 
-      {/* Summary Section */}
+      {/* Summary Section - Commented out */}
       {/* {pendingEnrollments.length > 0 && (
         <div className="mt-12 bg-white rounded-lg shadow-md p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Enrollment Summary</h2>
@@ -215,6 +182,7 @@ const MyEnrollments = () => {
           </div>
         </div>
       )} */}
+    </div>
     </div>
   );
 };

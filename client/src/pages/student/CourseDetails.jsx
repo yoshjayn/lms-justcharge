@@ -196,8 +196,8 @@ const CourseDetails = () => {
 
   return (
     <div>
-      <div className="flex md:flex-row flex-col-reverse gap-10 relative items-start justify-between md:px-36 px-8 md:pt-20 pt-10 text-left">
-        <div className="absolute top-0 left-0 w-full h-section-height -z-1 bg-gradient-to-b from-cyan-100/70"></div>
+      <div className="bg-[#F9ECE2] flex md:flex-row flex-col-reverse gap-10 relative items-start justify-between md:px-36 px-8 md:pt-20 pt-10 text-left">
+        <div className="absolute top-0 left-0 w-full h-section-height -z-1 bg-[#FBE9E7]"></div>
 
         {/* Left Side - Course Information */}
         <div className="max-w-xl z-10 text-gray-500">
@@ -299,7 +299,7 @@ const CourseDetails = () => {
                 <div className="text-center py-8">
                   <p className="text-gray-500">No course curriculum available</p>
                 </div>
-              )}}
+              )}
             </div>
           </div>
         </div>

@@ -14,7 +14,7 @@ const SideBar = () => {
   ];
 
   return isEducator && (
-    <div className='md:w-64 w-16 border-r min-h-screen text-base border-gray-500 py-2 flex flex-col'>
+    <div className='bg-[#F9ECE2] md:w-64 w-16 border-r min-h-screen text-base border-gray-500 py-2 flex flex-col'>
       {/* Role indicator */}
       <div className="px-4 py-2 text-xs text-gray-500 border-b border-gray-200 mb-2">
         Educator Panel

@@ -210,6 +210,8 @@ export const getPendingEnrollments = async (req, res) => {
     }
 };
 
+
+
 // Process Enrollment Request (approve/reject)
 export const processEnrollmentRequest = async (req, res) => {
     try {

@@ -127,7 +127,7 @@ const Player = ({ }) => {
   return courseData ? (
     <>
     
-    <div className='p-4 sm:p-10 flex flex-col-reverse md:grid md:grid-cols-2 gap-10 md:px-36' >
+    <div className='bg-[#F9ECE2] p-4 sm:p-10 flex flex-col-reverse md:grid md:grid-cols-2 gap-10 md:px-36' >
       <div className=" text-gray-800" >
         <h2 className="text-xl font-semibold">Course Structure</h2>
         <div className="pt-5">

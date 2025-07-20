@@ -6,7 +6,11 @@ import Loading from '../../components/student/Loading';
 
 const StudentsEnrolled = () => {
   const { backendUrl, getToken, isEducator } = useContext(AppContext);
-  
+
+  // Add these state variables at the top with your other useState declarations
+const [selectedUser, setSelectedUser] = useState(null);
+const [showUserModal, setShowUserModal] = useState(false);
+
   const [enrolledStudents, setEnrolledStudents] = useState([]);
   const [pendingEnrollments, setPendingEnrollments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,7 +29,7 @@ const StudentsEnrolled = () => {
   const fetchData = async () => {
     try {
       const token = await getToken();
-      
+
       // Fetch enrolled students
       const enrolledResponse = await axios.get(`${backendUrl}/api/educator/enrolled-students`, {
         headers: { Authorization: `Bearer ${token}` }
@@ -51,10 +55,20 @@ const StudentsEnrolled = () => {
       setLoading(false);
     }
   };
+// Add this function with your other handler functions
+const openUserDetailsModal = (user) => {
+  setSelectedUser(user);
+  setShowUserModal(true);
+};
+
+const closeUserModal = () => {
+  setSelectedUser(null);
+  setShowUserModal(false);
+};
 
   const handleApprove = async (enrollmentId) => {
     if (processing) return;
-    
+
     setProcessing(true);
     try {
       const token = await getToken();
@@ -81,7 +95,7 @@ const StudentsEnrolled = () => {
 
   const handleReject = async (enrollmentId) => {
     if (processing) return;
-    
+
     setProcessing(true);
     try {
       const token = await getToken();
@@ -137,21 +151,19 @@ const StudentsEnrolled = () => {
         <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg mb-6 w-fit">
           <button
             onClick={() => setActiveTab('pending')}
-            className={`px-6 py-2 rounded-md font-medium transition-colors ${
-              activeTab === 'pending'
+            className={`px-6 py-2 rounded-md font-medium transition-colors ${activeTab === 'pending'
                 ? 'bg-white text-blue-600 shadow-sm'
                 : 'text-gray-600 hover:text-gray-900'
-            }`}
+              }`}
           >
             Pending Requests ({pendingEnrollments.length})
           </button>
           <button
             onClick={() => setActiveTab('enrolled')}
-            className={`px-6 py-2 rounded-md font-medium transition-colors ${
-              activeTab === 'enrolled'
+            className={`px-6 py-2 rounded-md font-medium transition-colors ${activeTab === 'enrolled'
                 ? 'bg-white text-blue-600 shadow-sm'
                 : 'text-gray-600 hover:text-gray-900'
-            }`}
+              }`}
           >
             Enrolled Students ({enrolledStudents.length})
           </button>
@@ -164,7 +176,7 @@ const StudentsEnrolled = () => {
               <div className="text-center py-12 bg-white rounded-lg shadow-sm">
                 <div className="w-16 h-16 mx-auto mb-4 text-gray-300">
                   <svg fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
                   </svg>
                 </div>
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No pending requests</h3>
@@ -187,7 +199,7 @@ const StudentsEnrolled = () => {
                           <p className="text-gray-600">{enrollment.userId.email}</p>
                         </div>
                       </div>
-                      
+
                       <div className="bg-gray-50 p-4 rounded-lg mb-4">
                         <h4 className="font-medium mb-3 text-gray-900">Course Details</h4>
                         <div className="flex items-center gap-3">
@@ -267,7 +279,7 @@ const StudentsEnrolled = () => {
               <div className="text-center py-12">
                 <div className="w-16 h-16 mx-auto mb-4 text-gray-300">
                   <svg fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M16 4c0-1.11.89-2 2-2s2 .89 2 2-.89 2-2 2-2-.89-2-2zM4 18v-4h3v4h2v-7.5c0-.83.67-1.5 1.5-1.5S12 9.67 12 10.5V18h2v-4h3v4h1v2H4v-2z"/>
+                    <path d="M16 4c0-1.11.89-2 2-2s2 .89 2 2-.89 2-2 2-2-.89-2-2zM4 18v-4h3v4h2v-7.5c0-.83.67-1.5 1.5-1.5S12 9.67 12 10.5V18h2v-4h3v4h1v2H4v-2z" />
                   </svg>
                 </div>
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No enrolled students</h3>
@@ -282,6 +294,7 @@ const StudentsEnrolled = () => {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Enrolled Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">View Details</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -301,6 +314,20 @@ const StudentsEnrolled = () => {
                         <td className="px-6 py-4 text-sm text-gray-900">{item.courseTitle}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {new Date(item.purchaseDate).toLocaleDateString()}
+                        </td>
+                        
+
+                        
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <button
+                            onClick={() => openUserDetailsModal(item.student)}
+                            className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                          >
+                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                            View Details
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -403,6 +430,150 @@ const StudentsEnrolled = () => {
           </div>
         )}
 
+{/* User Details Modal */}
+{selectedUser && showUserModal && (
+  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xl font-semibold text-gray-900">Student Details</h3>
+          <button
+            onClick={closeUserModal}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="space-y-6">
+          {/* Profile Section */}
+          <div className="text-center">
+            <img
+              src={selectedUser.imageUrl}
+              alt={selectedUser.name}
+              className="w-24 h-24 rounded-full mx-auto mb-4 object-cover border-4 border-gray-100 shadow-lg"
+            />
+            <h4 className="text-2xl font-bold text-gray-900 mb-1">{selectedUser.name}</h4>
+            <p className="text-gray-600 text-lg">{selectedUser.email}</p>
+          </div>
+
+          {/* Basic Information */}
+          <div className="bg-gray-50 rounded-lg p-4">
+            <h5 className="font-semibold text-gray-900 mb-3 text-lg">Basic Information</h5>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm font-medium text-gray-500">Full Name</p>
+                <p className="text-gray-900 font-medium">{selectedUser.name}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-500">Email Address</p>
+                <p className="text-gray-900 font-medium">{selectedUser.email}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-500">Student ID</p>
+                <p className="text-gray-900 font-medium font-mono text-sm">{selectedUser._id}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-500">Registration Date</p>
+                <p className="text-gray-900 font-medium">
+                  {selectedUser.createdAt ? new Date(selectedUser.createdAt).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                  }) : 'Not available'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Account Status */}
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <h5 className="font-semibold text-green-900 mb-2 flex items-center">
+              <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              Account Status
+            </h5>
+            <p className="text-green-800">
+              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                Active Student
+              </span>
+            </p>
+          </div>
+
+          {/* Additional Information (if available) */}
+          {selectedUser.resume && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h5 className="font-semibold text-blue-900 mb-2">Resume/Profile</h5>
+              <p className="text-blue-800">{selectedUser.resume}</p>
+            </div>
+          )}
+
+          {/* Enrollment Statistics */}
+          <div className="bg-gray-50 rounded-lg p-4">
+            <h5 className="font-semibold text-gray-900 mb-3">Enrollment Information</h5>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="text-center p-3 bg-white rounded-lg border">
+                <p className="text-2xl font-bold text-blue-600">
+                  {selectedUser.enrolledCourses ? selectedUser.enrolledCourses.length : 0}
+                </p>
+                <p className="text-sm text-gray-600">Total Courses</p>
+              </div>
+              <div className="text-center p-3 bg-white rounded-lg border">
+                <p className="text-2xl font-bold text-green-600">Active</p>
+                <p className="text-sm text-gray-600">Enrollment Status</p>
+              </div>
+              <div className="text-center p-3 bg-white rounded-lg border">
+                <p className="text-2xl font-bold text-purple-600">Student</p>
+                <p className="text-sm text-gray-600">Account Type</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Actions */}
+          <div className="bg-gray-50 rounded-lg p-4">
+            <h5 className="font-semibold text-gray-900 mb-3">Quick Actions</h5>
+            <div className="flex flex-wrap gap-3">
+              <button 
+                onClick={() => window.open(`mailto:${selectedUser.email}`, '_blank')}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 transition-colors"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                Send Email
+              </button>
+              <button 
+                className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+                onClick={() => {
+                  navigator.clipboard.writeText(selectedUser._id);
+                  toast.success('Student ID copied to clipboard');
+                }}
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                Copy Student ID
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Close Button */}
+        <div className="flex justify-end mt-6 pt-4 border-t">
+          <button
+            onClick={closeUserModal}
+            className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-medium"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
         {/* Rejection Modal */}
         {selectedEnrollment && showRejectModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">

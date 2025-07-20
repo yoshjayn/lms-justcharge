@@ -1,4 +1,7 @@
 import logo from './logo.svg'
+import lms_logo from './lms_logo.png'
+import lms_logo1 from './lms_logo1.png'
+import mentor_photo from './mentor_photo.jpg'
 import logo_dark from './logo_dark.svg'
 import search_icon from './search_icon.svg'
 import cross_icon from './cross_icon.svg'
@@ -47,6 +50,9 @@ import QR_Code_Example from './QR_Code_Example.jpg'
 export const assets = {
     QR_Code_Example,
     logo,
+    lms_logo,
+    lms_logo1,
+    mentor_photo,
     search_icon,
     sketch,
     microsoft_logo,
