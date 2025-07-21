@@ -8,8 +8,8 @@ const CoursesSection = () => {
   const { allCourses } = useContext(AppContext)
 
   return (
-    <div className="py-16 md:px-40 px-8">
-      <h2 className="text-3xl font-medium text-gray-800">Inside The LMS</h2>
+    <div className="py-16 pt-12 md:px-40 px-8">
+      <h2 className="text-3xl font-medium text-gray-800">Surf Our Courses</h2>
       <p className="md:text-base text-sm text-gray-500 mt-3">
          All your classes, feedback, assignments in one place.
       </p>

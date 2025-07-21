@@ -6,13 +6,26 @@ import { AppContext } from '../../context/AppContext'
 const CourseCard = ({ course }) => {
 
     const { currency, calculateRating } = useContext(AppContext)
+    // Handle case where course or course.educator might be null/undefined
+    if (!course) {
+        return null; // Don't render anything if course is null
+    }
 
+    // Safely get educator name with fallback
+    const getEducatorName = () => {
+        if (course.educator && course.educator.name) {
+            return course.educator.name;
+        }
+        return "Unknown Educator"; // Fallback when educator is null or name is missing
+    };
     return (
         <Link onClick={() => scrollTo(0, 0)} to={'/course/' + course._id} className="border border-gray-500/30 pb-6 overflow-hidden rounded-lg">
             <img className="w-full" src={course.courseThumbnail} alt='' />
             <div className="p-3 text-left">
-                <h3 className="text-base font-semibold">{course.courseTitle}</h3>
-                <p className="text-gray-500">{course.educator.name}</p>
+                <h3 className="text-base font-semibold">{course.courseTitle || 'Untitled Course'}</h3>
+                <p className="text-gray-500">
+                    {getEducatorName()}
+                </p>
                 <div className="flex items-center space-x-2">
                     <p>{calculateRating(course)}</p>
                     <div className="flex">

@@ -100,25 +100,25 @@ export const assets = {
 
 export const dummyTestimonial = [
     {
-        name: 'Donald Jackman',
+        name: 'Rhea Malhotra, 27, Mumbai',
         role: 'SWE 1 @ Amazon',
-        image: assets.profile_img_1,
+        image: 'https://randomuser.me/api/portraits/women/44.jpg',
         rating: 5,
-        feedback: 'I\'ve been using Imagify for nearly two years, primarily for Instagram, and it has been incredibly user-friendly, making my work much easier.',
+        feedback: 'I enrolled in this course out of sheer curiosity, not expecting much—but I was blown away! The way astrology and tarot were explained step by step made everything feel so accessible, even to someone with zero background like me. The live sessions were super engaging, and now I can confidently read birth charts and do tarot spreads for friends!',
     },
     {
-        name: 'Richard Nelson',
+        name: 'Ankit Joshi, 34, Pune',
         role: 'SWE 2 @ Samsung',
         image: assets.profile_img_2,
         rating: 4,
-        feedback: 'I\'ve been using Imagify for nearly two years, primarily for Instagram, and it has been incredibly user-friendly, making my work much easier.',
+        feedback: 'This course wasn’t just about learning tarot or astrology—it was a deep spiritual journey. I discovered so much about myself through the process. The instructors are genuinely connected to their craft, and it shows in the way they teach. Every session felt like soul work.',
     },
     {
-        name: 'James Washington',
+        name: 'Priya Sharma, 39, Delhi',
         role: 'SWE 2 @ Google',
         image: assets.profile_img_3,
         rating: 4.5,
-        feedback: 'I\'ve been using Imagify for nearly two years, primarily for Instagram, and it has been incredibly user-friendly, making my work much easier.',
+        feedback: 'I’ve always wanted to make a career in spiritual guidance, but didn’t know where to start. This course gave me a solid foundation in both astrology and tarot. The best part? It includes real-life case studies, professional ethics, and even tips on how to start your own consultation business. Worth every rupee!',
     },
 ];
 
