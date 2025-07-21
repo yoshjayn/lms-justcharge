@@ -4,12 +4,25 @@ import stripe from "stripe";
 import { Purchase } from "../models/Purchase.js";
 import Course from "../models/Course.js";
 
-
+// Helper function to safely construct full name
+const constructFullName = (firstName, lastName) => {
+  const first = firstName && firstName.trim() ? firstName.trim() : '';
+  const last = lastName && lastName.trim() ? lastName.trim() : '';
+  
+  if (first && last) {
+    return `${first} ${last}`;
+  } else if (first) {
+    return first;
+  } else if (last) {
+    return last;
+  } else {
+    return undefined; // Don't set name field if both are missing
+  }
+};
 
 // API Controller Function to Manage Clerk User with database
 export const clerkWebhooks = async (req, res) => {
   try {
-
     // Create a Svix instance with clerk webhook secret.
     const whook = new Webhook(process.env.CLERK_WEBHOOK_SECRET)
 
@@ -23,29 +36,63 @@ export const clerkWebhooks = async (req, res) => {
     // Getting Data from request body
     const { data, type } = req.body
 
-    // Switch Cases for differernt Events
+    // Switch Cases for different Events
     switch (type) {
       case 'user.created': {
+        console.log('Clerk user.created webhook data:', {
+          id: data.id,
+          email: data.email_addresses[0]?.email_address,
+          first_name: data.first_name,
+          last_name: data.last_name,
+          image_url: data.image_url
+        });
 
+        // Build userData object with proper name handling
         const userData = {
           _id: data.id,
           email: data.email_addresses[0].email_address,
-          name: data.first_name + " " + data.last_name,
-          imageUrl: data.image_url,
-          resume: ''
+          imageUrl: data.image_url
         }
+
+        // Only add name if we can construct a valid one
+        const fullName = constructFullName(data.first_name, data.last_name);
+        if (fullName) {
+          userData.name = fullName;
+        }
+        // If no valid name, the field will be undefined and won't be saved to DB
+
+        console.log('Creating user with data:', userData);
+
         await User.create(userData)
         res.json({})
         break;
       }
 
       case 'user.updated': {
-        const userData = {
+        console.log('Clerk user.updated webhook data:', {
+          id: data.id,
+          email: data.email_addresses[0]?.email_address,
+          first_name: data.first_name,
+          last_name: data.last_name,
+          image_url: data.image_url
+        });
+
+        // Build update object with proper name handling
+        const updateData = {
           email: data.email_addresses[0].email_address,
-          name: data.first_name + " " + data.last_name,
           imageUrl: data.image_url,
         }
-        await User.findByIdAndUpdate(data.id, userData)
+
+        // Only update name if we can construct a valid one
+        const fullName = constructFullName(data.first_name, data.last_name);
+        if (fullName) {
+          updateData.name = fullName;
+        }
+        // If no valid name, don't update the name field
+
+        console.log('Updating user with data:', updateData);
+
+        await User.findByIdAndUpdate(data.id, updateData)
         res.json({})
         break;
       }
@@ -56,18 +103,18 @@ export const clerkWebhooks = async (req, res) => {
         break;
       }
       default:
+        console.log(`Unhandled webhook event type: ${type}`);
         break;
     }
 
   } catch (error) {
+    console.error('Clerk webhook error:', error);
     res.json({ success: false, message: error.message })
   }
 }
 
-
 // Stripe Gateway Initialize
 const stripeInstance = new stripe(process.env.STRIPE_SECRET_KEY)
-
 
 // Stripe Webhooks to Manage Payments Action
 export const stripeWebhooks = async (request, response) => {
@@ -85,7 +132,6 @@ export const stripeWebhooks = async (request, response) => {
   // Handle the event
   switch (event.type) {
     case 'payment_intent.succeeded': {
-
       const paymentIntent = event.data.object;
       const paymentIntentId = paymentIntent.id;
 
