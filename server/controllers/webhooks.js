@@ -5,11 +5,17 @@ import { Purchase } from "../models/Purchase.js";
 import Course from "../models/Course.js";
 
 // Helper function to safely construct full name
+const sanitize = (value) => {
+  if (!value) return '';
+  const str = String(value).trim();
+  return str === 'null' || str === 'undefined' ? '' : str;
+};
+
 const constructFullName = (firstName, lastName) => {
-  const first = firstName && firstName.trim() ? firstName.trim() : '';
-  const last = lastName && lastName.trim() ? lastName.trim() : '';
+  const first = sanitize(firstName);
+  const last = sanitize(lastName);
   
-  if (first && last) {
+  if (first && last && first!=null && last!=null) {
     return `${first} ${last}`;
   } else if (first) {
     return first;
