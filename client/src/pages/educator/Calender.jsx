@@ -5,50 +5,29 @@ import { toast } from 'react-toastify';
 import Loading from '../../components/student/Loading';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
+import { MessageCircle, Phone, Calendar as CalendarIcon, X, CheckCircle, XCircle } from 'lucide-react';
 
 const Calender = () => {
     const { backendUrl, getToken, isEducator } = useContext(AppContext);
 
-    // Add these state variables at the top with your other useState declarations
-    const [selectedUser, setSelectedUser] = useState(null);
-    const [showUserModal, setShowUserModal] = useState(false);
-
-    const [enrolledStudents, setEnrolledStudents] = useState([]);
-    const [pendingEnrollments, setPendingEnrollments] = useState([]);
+    // State management
+    const [activeTab, setActiveTab] = useState('manage'); // 'manage' or 'bookings'
     const [loading, setLoading] = useState(true);
-    const [selectedEnrollment, setSelectedEnrollment] = useState(null);
-    const [showRejectModal, setShowRejectModal] = useState(false);
-    const [rejectionReason, setRejectionReason] = useState('');
     const [processing, setProcessing] = useState(false);
-    const [activeTab, setActiveTab] = useState('pending'); // 'pending' or 'enrolled'
 
-    // Calendar related state
+    // Block/Manage Slots Tab State
     const [selectedDate, setSelectedDate] = useState(new Date());
-    const [selectedTime, setSelectedTime] = useState('');
+    const [selectedTime, setSelectedTime] = useState(''); // Store selected time slot
+    const [blockedSlots, setBlockedSlots] = useState([]);
+    const [pendingBookings, setPendingBookings] = useState([]);
 
     // Time slots array
     const timeSlots = [
-
-        '10:00 AM',
-        '10:30 AM',
-        '11:00 AM',
-        '11:30 AM',
-        '12:00 PM',
-        '12:30 PM',
-        '01:00 PM',
-        '01:30 PM',
-        '02:00 PM',
-        '02:30 PM',
-        '03:00 PM',
-        '03:30 PM',
-        '04:00 PM',
-        '04:30 PM',
-        '05:00 PM',
-        '05:30 PM',
-        '06:00 PM',
-        '06:30 PM',
-        '07:00 PM',
-
+        '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM',
+        '12:00 PM', '12:30 PM', '01:00 PM', '01:30 PM',
+        '02:00 PM', '02:30 PM', '03:00 PM', '03:30 PM',
+        '04:00 PM', '04:30 PM', '05:00 PM', '05:30 PM',
+        '06:00 PM', '06:30 PM', '07:00 PM'
     ];
 
     useEffect(() => {
@@ -57,117 +36,149 @@ const Calender = () => {
         }
     }, [isEducator]);
 
+    useEffect(() => {
+        if (selectedDate && activeTab === 'manage') {
+            fetchBlockedSlots();
+        }
+    }, [selectedDate, activeTab]);
+
+    useEffect(() => {
+        if (activeTab === 'bookings') {
+            fetchPendingBookings();
+        }
+    }, [activeTab]);
+
     const fetchData = async () => {
+        setLoading(true);
         try {
-            const token = await getToken();
-
-            // Fetch enrolled students
-            const enrolledResponse = await axios.get(`${backendUrl}/api/educator/enrolled-students`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-
-            // Fetch pending enrollments
-            const pendingResponse = await axios.get(`${backendUrl}/api/educator/pending-enrollments`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
-
-            if (enrolledResponse.data.success) {
-                setEnrolledStudents(enrolledResponse.data.enrolledStudents.reverse());
-            }
-
-            if (pendingResponse.data.success) {
-                setPendingEnrollments(pendingResponse.data.enrollments);
-            }
-
+            await Promise.all([
+                fetchBlockedSlots(),
+                fetchPendingBookings()
+            ]);
         } catch (error) {
             console.error('Error fetching data:', error);
-            toast.error('Error fetching student data');
+            toast.error('Error fetching data');
         } finally {
             setLoading(false);
         }
     };
 
-    // Add this function with your other handler functions
-    const openUserDetailsModal = (user) => {
-        setSelectedUser(user);
-        setShowUserModal(true);
+    const fetchPendingBookings = async () => {
+        try {
+            const token = await getToken();
+            const response = await axios.get(`${backendUrl}/api/booking/pending-bookings`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (response.data.success) {
+                setPendingBookings(response.data.bookings);
+            }
+        } catch (error) {
+            console.error('Error fetching pending bookings:', error);
+            setPendingBookings([]);
+        }
     };
 
-    const closeUserModal = () => {
-        setSelectedUser(null);
-        setShowUserModal(false);
+    const fetchBlockedSlots = async () => {
+        try {
+            const token = await getToken();
+            const dateString = selectedDate.toISOString().split('T')[0];
+            const response = await axios.get(`${backendUrl}/api/booking/educator-schedule`, {
+                headers: { Authorization: `Bearer ${token}` },
+                params: { startDate: dateString, endDate: dateString }
+            });
+
+            if (response.data.success) {
+                setBlockedSlots(response.data.schedule);
+            }
+        } catch (error) {
+            console.error('Error fetching blocked slots:', error);
+            setBlockedSlots([]);
+        }
     };
 
-    const handleApprove = async (enrollmentId) => {
-        if (processing) return;
+    // Handle time slot selection
+    const handleTimeSlotClick = (timeSlot) => {
+        const slotInfo = getSlotInfo(timeSlot);
+        const isBlocked = isSlotBlocked(timeSlot);
+
+        if (isBlocked && slotInfo?.isBlocked) {
+            // If slot is blocked, unblock it
+            handleUnblockSlot(slotInfo);
+        } else if (!isBlocked) {
+            // If slot is available, select it for blocking
+            setSelectedTime(timeSlot);
+            console.log('📋 Selected time slot for blocking:', timeSlot);
+        }
+        // If slot has a booking, do nothing (disabled)
+    };
+
+    // Handle "Block Slot" button click
+    const handleBookSlot = async () => {
+        if (!selectedTime) {
+            toast.error('Please select a time slot to block');
+            return;
+        }
 
         setProcessing(true);
         try {
             const token = await getToken();
-            const response = await axios.post(`${backendUrl}/api/educator/process-enrollment/${enrollmentId}`, {
-                action: 'approve'
+            const response = await axios.post(`${backendUrl}/api/booking/manage-slot`, {
+                date: selectedDate.toISOString().split('T')[0],
+                timeSlot: selectedTime,
+                isBlocked: true,
+                blockReason: 'Blocked by educator'
             }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
             if (response.data.success) {
-                toast.success('Enrollment approved successfully');
-                setSelectedEnrollment(null);
-                fetchData(); // Refresh data
+                toast.success(`Time slot ${selectedTime} blocked successfully`);
+                setSelectedTime(''); // Clear selection
+                fetchBlockedSlots(); // Refresh blocked slots
             } else {
                 toast.error(response.data.message);
             }
         } catch (error) {
-            console.error('Error approving enrollment:', error);
-            toast.error('Error approving enrollment');
+            console.error('Error blocking slot:', error);
+            toast.error('Error blocking time slot');
         } finally {
             setProcessing(false);
         }
     };
 
-    const handleReject = async (enrollmentId) => {
-        if (processing) return;
-
+    const handleUnblockSlot = async (slot) => {
         setProcessing(true);
         try {
             const token = await getToken();
-            const response = await axios.post(`${backendUrl}/api/educator/process-enrollment/${enrollmentId}`, {
-                action: 'reject',
-                rejectionReason: rejectionReason.trim() || 'No reason provided'
+            const response = await axios.post(`${backendUrl}/api/booking/manage-slot`, {
+                date: slot.date,
+                timeSlot: slot.timeSlot,
+                isBlocked: false
             }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
 
             if (response.data.success) {
-                toast.success('Enrollment rejected successfully');
-                setSelectedEnrollment(null);
-                setShowRejectModal(false);
-                setRejectionReason('');
-                fetchData(); // Refresh data
+                toast.success(`Time slot ${slot.timeSlot} unblocked successfully`);
+                fetchBlockedSlots();
             } else {
                 toast.error(response.data.message);
             }
         } catch (error) {
-            console.error('Error rejecting enrollment:', error);
-            toast.error('Error rejecting enrollment');
+            console.error('Error unblocking slot:', error);
+            toast.error('Error unblocking time slot');
         } finally {
             setProcessing(false);
         }
     };
 
-    const openTransactionDetails = (enrollment) => {
-        setSelectedEnrollment(enrollment);
-        setShowRejectModal(false);
+    const isSlotBlocked = (timeSlot) => {
+        return blockedSlots.some(slot => slot.timeSlot === timeSlot && (slot.isBlocked || slot.bookingId));
     };
 
-    const closeModal = () => {
-        setSelectedEnrollment(null);
-        setShowRejectModal(false);
-        setRejectionReason('');
-    };
-
-    const openRejectModal = () => {
-        setShowRejectModal(true);
+    const getSlotInfo = (timeSlot) => {
+        return blockedSlots.find(slot => slot.timeSlot === timeSlot);
     };
 
     if (loading) {
@@ -182,493 +193,234 @@ const Calender = () => {
                 {/* Tab Navigation */}
                 <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg mb-6 w-fit">
                     <button
-                        onClick={() => setActiveTab('pending')}
-                        className={`px-6 py-2 rounded-md font-medium transition-colors ${activeTab === 'pending'
-                            ? 'bg-white text-blue-600 shadow-sm'
-                            : 'text-gray-600 hover:text-gray-900'
-                            }`}
+                        onClick={() => {
+                            setActiveTab('manage');
+                            setSelectedTime(''); // Clear selection when switching tabs
+                        }}
+                        className={`px-6 py-2 rounded-md font-medium transition-colors ${
+                            activeTab === 'manage'
+                                ? 'bg-white text-blue-600 shadow-sm'
+                                : 'text-gray-600 hover:text-gray-900'
+                        }`}
                     >
-                        Block/Manage Slots ({pendingEnrollments.length})
+                        Block/Manage Slots
                     </button>
                     <button
-                        onClick={() => setActiveTab('enrolled')}
-                        className={`px-6 py-2 rounded-md font-medium transition-colors ${activeTab === 'enrolled'
-                            ? 'bg-white text-blue-600 shadow-sm'
-                            : 'text-gray-600 hover:text-gray-900'
-                            }`}
+                        onClick={() => setActiveTab('bookings')}
+                        className={`px-6 py-2 rounded-md font-medium transition-colors ${
+                            activeTab === 'bookings'
+                                ? 'bg-white text-blue-600 shadow-sm'
+                                : 'text-gray-600 hover:text-gray-900'
+                        }`}
                     >
-                        New Bookings ({enrolledStudents.length})
+                        New Bookings ({pendingBookings.length})
                     </button>
                 </div>
 
-                {/* Pending Enrollments Tab */}
-                {activeTab === 'pending' && (
+                {/* Block/Manage Slots Tab */}
+                {activeTab === 'manage' && (
                     <div className="space-y-6">
-                        {pendingEnrollments.length === 0 ? (
-                            <div>
-                            {/* Calendar & Time Slots */}
-                            <div
-                                className="flex flex-col lg:flex-row gap-6 mb-8 w-full"
-                                style={{ maxWidth: "1190px" }}
-                            >
-                                {/* Calendar */}
-                                <div
-                                    className="border rounded-md p-3 sm:p-5 flex flex-col bg-white shadow-sm"
-                                    style={{
-                                        width: "100%",
-                                        maxWidth: "736px",
-                                        height: "380px",
-                                        margin: "0 auto",
-                                    }}
-                                >
-                                    <h2 className="text-lg font-semibold mb-4">Select A Date</h2>
-                                    <div className="flex-grow flex justify-center items-center">
-                                        <Calendar
-                                            onChange={setSelectedDate}
-                                            value={selectedDate}
-                                            className="calendar-custom w-full"
-                                            tileClassName={({ date }) =>
-                                                date.toDateString() === selectedDate.toDateString()
-                                                    ? "bg-[#A16D00] text-white rounded-full"
-                                                    : ""
-                                            }
-                                            nextLabel=">"
-                                            prevLabel="<"
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Time Slots */}
-                                <div
-                                    className="border rounded-md p-3 sm:p-5 flex flex-col bg-white shadow-sm"
-                                    style={{
-                                        width: "100%",
-                                        maxWidth: "434px",
-                                        height: "380px",
-                                        margin: "0 auto",
-                                    }}
-                                >
-                                    <h2 className="text-lg font-semibold mb-4">Select A Time</h2>
-                                    <div className="flex flex-col gap-3 overflow-y-auto">
-                                        {timeSlots.map((time) => (
-                                            <button
-                                                key={time}
-                                                onClick={() => setSelectedTime(time)}
-                                                className={`border rounded py-3 text-center transition ${selectedTime === time
-                                                        ? "bg-[#A16D00] text-white"
-                                                        : "bg-white text-[#5E4326] hover:bg-gray-50"
-                                                    }`}
-                                            >
-                                                {time}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                                </div>
-                                {/* Continue Button */}
-                                <div className="flex justify-center lg:justify-end w-full max-w-[1190px]">
-                                    <button
-                                        className="flex items-center gap-2 bg-[#5E4326] text-white px-8 py-3 rounded hover:bg-[#4a3723] transition w-full sm:w-auto"
-                                        style={{ maxWidth: "323px", height: "53px" }}
-                                    // onClick={handleEnrollClick}
-                                    >
-                                        Block Slot
-                                        {/* <ChevronRight size={20} /> */}
-                                    </button>
+                        <div className="flex flex-col lg:flex-row gap-6 mb-8 w-full" style={{ maxWidth: "1190px" }}>
+                            {/* Calendar */}
+                            <div className="border rounded-md p-3 sm:p-5 flex flex-col bg-white shadow-sm"
+                                style={{ width: "100%", maxWidth: "736px", height: "380px", margin: "0 auto" }}>
+                                <h2 className="text-lg font-semibold mb-4">Select A Date</h2>
+                                <div className="flex-grow flex justify-center items-center">
+                                    <Calendar
+                                        onChange={(date) => {
+                                            setSelectedDate(date);
+                                            setSelectedTime(''); // Clear time selection when date changes
+                                        }}
+                                        value={selectedDate}
+                                        className="calendar-custom w-full"
+                                        tileClassName={({ date }) =>
+                                            date.toDateString() === selectedDate.toDateString()
+                                                ? "bg-[#A16D00] text-white rounded-full"
+                                                : ""
+                                        }
+                                        tileDisabled={({ date }) => {
+                                            const today = new Date();
+                                            today.setHours(0, 0, 0, 0);
+                                            return date < today;
+                                        }}
+                                    />
                                 </div>
                             </div>
+
+                            {/* Time Slots */}
+                            <div className="border rounded-md p-3 sm:p-5 flex flex-col bg-white shadow-sm"
+                                style={{ width: "100%", maxWidth: "434px", height: "380px", margin: "0 auto" }}>
+                                <h2 className="text-lg font-semibold mb-4">
+                                    Manage Time Slots
+                                    {selectedTime && (
+                                        <span className="text-sm text-blue-600 ml-2">
+                                            (Selected: {selectedTime})
+                                        </span>
+                                    )}
+                                </h2>
+                                <div className="flex flex-col gap-3 overflow-y-auto">
+                                    {timeSlots.map((time) => {
+                                        const slotInfo = getSlotInfo(time);
+                                        const isBlocked = isSlotBlocked(time);
+                                        const isSelected = selectedTime === time;
+
+                                        return (
+                                            <div key={time} className="relative">
+                                                <button
+                                                    onClick={() => handleTimeSlotClick(time)}
+                                                    disabled={slotInfo?.bookingId} // Disable if has booking
+                                                    className={`w-full border rounded py-3 text-center transition ${
+                                                        slotInfo?.bookingId
+                                                            ? "bg-red-100 text-red-800 border-red-300 cursor-not-allowed"
+                                                            : isSelected
+                                                                ? "bg-blue-100 text-blue-800 border-blue-300 ring-2 ring-blue-500"
+                                                                : isBlocked
+                                                                    ? "bg-yellow-100 text-yellow-800 border-yellow-300 hover:bg-yellow-200"
+                                                                    : "bg-white text-[#5E4326] hover:bg-gray-50 border-gray-300"
+                                                    }`}
+                                                >
+                                                    <span className="block">{time}</span>
+                                                    {slotInfo?.bookingId && <span className="text-xs">Booked</span>}
+                                                    {slotInfo?.isBlocked && !slotInfo?.bookingId && (
+                                                        <span className="text-xs">Blocked (Click to unblock)</span>
+                                                    )}
+                                                    {isSelected && !isBlocked && (
+                                                        <span className="text-xs">Selected for blocking</span>
+                                                    )}
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Block Slot Button */}
+                        <div className="flex justify-center lg:justify-end w-full max-w-[1190px]">
+                            <button
+                                onClick={handleBookSlot}
+                                disabled={!selectedTime || processing}
+                                className="flex items-center gap-2 bg-[#5E4326] text-white px-8 py-3 rounded hover:bg-[#4a3723] transition w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
+                                style={{ maxWidth: "323px", height: "53px" }}
+                            >
+                                {processing ? (
+                                    <>
+                                        <svg className="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                        </svg>
+                                        Blocking...
+                                    </>
+                                ) : (
+                                    <>
+                                        Block Slot
+                                        {selectedTime && <span className="ml-1">({selectedTime})</span>}
+                                    </>
+                                )}
+                            </button>
+                        </div>
+
+                        {/* Instructions */}
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <h3 className="font-medium text-blue-900 mb-2">How to manage slots:</h3>
+                            <ul className="text-sm text-blue-800 space-y-1">
+                                <li>• Click on an available (white) slot to select it for blocking</li>
+                                <li>• Click "Block Slot" button to block the selected time slot</li>
+                                <li>• Click on a blocked (yellow) slot to unblock it immediately</li>
+                                <li>• Booked (red) slots cannot be modified</li>
+                                <li>• Blocked slots will not be available for booking on the website</li>
+                            </ul>
+                        </div>
+                    </div>
+                )}
+
+                {/* New Bookings Tab */}
+                {activeTab === 'bookings' && (
+                    <div className="space-y-6">
+                        {pendingBookings.length === 0 ? (
+                            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+                                <CalendarIcon className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                                <h3 className="text-lg font-medium text-gray-900 mb-2">No pending bookings</h3>
+                                <p className="text-gray-500">New booking requests will appear here for your review.</p>
+                            </div>
                         ) : (
-                            pendingEnrollments.map((enrollment) => (
-                                <div key={enrollment._id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+                            pendingBookings.map((booking) => (
+                                <div key={booking._id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
                                     <div className="flex flex-col lg:flex-row gap-6">
-                                        {/* Student and Course Info */}
+                                        {/* Booking Info */}
                                         <div className="flex-1">
                                             <div className="flex items-center gap-4 mb-4">
-                                                <img
-                                                    src={enrollment.userId.imageUrl}
-                                                    alt="Student"
-                                                    className="w-12 h-12 rounded-full object-cover"
-                                                />
+                                                {/* Handle both LMS users and website users */}
+                                                <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center">
+                                                    {booking.studentId?.imageUrl ? (
+                                                        <img
+                                                            src={booking.studentId.imageUrl}
+                                                            alt="Student"
+                                                            className="w-12 h-12 rounded-full object-cover"
+                                                        />
+                                                    ) : (
+                                                        <span className="text-gray-600 font-medium">
+                                                            {booking.studentId?.name?.charAt(0) || 'W'}
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 <div>
-                                                    <h3 className="font-semibold text-lg text-gray-900">{enrollment.userId.name}</h3>
-                                                    <p className="text-gray-600">{enrollment.userId.email}</p>
+                                                    <h3 className="font-semibold text-lg text-gray-900">
+                                                        {booking.studentId?.name || 'Website User'}
+                                                    </h3>
+                                                    <p className="text-gray-600">
+                                                        {booking.studentId?.email || 'No email provided'}
+                                                    </p>
                                                 </div>
                                             </div>
 
-                                            <div className="bg-gray-50 p-4 rounded-lg mb-4">
-                                                <h4 className="font-medium mb-3 text-gray-900">Course Details</h4>
-                                                <div className="flex items-center gap-3">
-                                                    <img
-                                                        src={enrollment.courseId.courseThumbnail}
-                                                        alt="Course"
-                                                        className="w-16 h-16 rounded-lg object-cover"
-                                                    />
-                                                    <div>
-                                                        <p className="font-medium text-gray-900">{enrollment.courseId.courseTitle}</p>
-                                                        <p className="text-green-600 font-semibold">₹{enrollment.courseId.coursePrice}</p>
-                                                    </div>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                                <div className="bg-gray-50 p-3 rounded-lg">
+                                                    <p className="text-sm font-medium text-gray-500">Service</p>
+                                                    <p className="font-medium">{booking.serviceType}</p>
+                                                </div>
+                                                <div className="bg-gray-50 p-3 rounded-lg">
+                                                    <p className="text-sm font-medium text-gray-500">Amount</p>
+                                                    <p className="font-medium text-green-600">₹{booking.amount}</p>
+                                                </div>
+                                                <div className="bg-gray-50 p-3 rounded-lg">
+                                                    <p className="text-sm font-medium text-gray-500">Date</p>
+                                                    <p className="font-medium">{new Date(booking.selectedDate).toLocaleDateString()}</p>
+                                                </div>
+                                                <div className="bg-gray-50 p-3 rounded-lg">
+                                                    <p className="text-sm font-medium text-gray-500">Time</p>
+                                                    <p className="font-medium">{booking.selectedTime}</p>
                                                 </div>
                                             </div>
 
                                             <div className="text-sm text-gray-600">
-                                                <p><strong>Transaction ID:</strong> {enrollment.transactionId}</p>
-                                                <p><strong>Submitted:</strong> {new Date(enrollment.createdAt).toLocaleString()}</p>
+                                                <p><strong>Transaction ID:</strong> {booking.paymentDetails.transactionId}</p>
+                                                <p><strong>WhatsApp:</strong> +91 {booking.contactDetails.whatsappNumber}</p>
+                                                <p><strong>Submitted:</strong> {new Date(booking.createdAt).toLocaleString()}</p>
+                                                <p><strong>Source:</strong> {booking.studentId?.name ? 'LMS User' : 'Website User'}</p>
                                             </div>
                                         </div>
 
                                         {/* Action Button */}
                                         <div className="lg:w-1/3 flex items-center justify-center">
                                             <button
-                                                onClick={() => openTransactionDetails(enrollment)}
+                                                onClick={() => {
+                                                    // Handle view details - you can implement modal here
+                                                    console.log('View booking details:', booking);
+                                                }}
                                                 className="w-full bg-blue-600 text-white py-3.5 px-6 rounded-lg hover:bg-blue-700 transition-all transform hover:scale-[1.02] shadow-md hover:shadow-lg font-semibold flex items-center justify-center gap-2"
                                             >
                                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                                 </svg>
-                                                View Transaction Details
+                                                View Details
                                             </button>
                                         </div>
                                     </div>
                                 </div>
                             ))
                         )}
-                    </div>
-                )}
-
-                {/* Enrolled Students Tab */}
-                {activeTab === 'enrolled' && (
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                        {enrolledStudents.length === 0 ? (
-                            <div className="text-center py-12">
-                                <div className="w-16 h-16 mx-auto mb-4 text-gray-300">
-                                    <svg fill="currentColor" viewBox="0 0 24 24">
-                                        <path d="M16 4c0-1.11.89-2 2-2s2 .89 2 2-.89 2-2 2-2-.89-2-2zM4 18v-4h3v4h2v-7.5c0-.83.67-1.5 1.5-1.5S12 9.67 12 10.5V18h2v-4h3v4h1v2H4v-2z" />
-                                    </svg>
-                                </div>
-                                <h3 className="text-lg font-medium text-gray-900 mb-2">No enrolled students</h3>
-                                <p className="text-gray-500">Students will appear here once their enrollments are approved.</p>
-                            </div>
-                        ) : (
-                            <div className="overflow-hidden">
-                                <table className="w-full">
-                                    <thead className="bg-gray-50 border-b border-gray-200">
-                                        <tr>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Enrolled Date</th>
-                                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">View Details</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="bg-white divide-y divide-gray-200">
-                                        {enrolledStudents.map((item, index) => (
-                                            <tr key={index} className="hover:bg-gray-50">
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <div className="flex items-center">
-                                                        <img
-                                                            src={item.student.imageUrl}
-                                                            alt=""
-                                                            className="w-10 h-10 rounded-full mr-3"
-                                                        />
-                                                        <span className="text-sm font-medium text-gray-900">{item.student.name}</span>
-                                                    </div>
-                                                </td>
-                                                <td className="px-6 py-4 text-sm text-gray-900">{item.courseTitle}</td>
-                                                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                    {new Date(item.purchaseDate).toLocaleDateString()}
-                                                </td>
-
-                                                <td className="px-6 py-4 whitespace-nowrap">
-                                                    <button
-                                                        onClick={() => openUserDetailsModal(item.student)}
-                                                        className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-                                                    >
-                                                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                                        </svg>
-                                                        View Details
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {/* Transaction Details Modal */}
-                {selectedEnrollment && !showRejectModal && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                        <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                            <div className="p-6">
-                                <div className="flex justify-between items-center mb-6">
-                                    <h3 className="text-xl font-semibold text-gray-900">Transaction Details</h3>
-                                    <button
-                                        onClick={closeModal}
-                                        className="text-gray-400 hover:text-gray-600"
-                                    >
-                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                        </svg>
-                                    </button>
-                                </div>
-
-                                <div className="space-y-6">
-                                    {/* Student Info */}
-                                    <div>
-                                        <h4 className="font-medium text-gray-900 mb-2">Student Information</h4>
-                                        <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                                            <img
-                                                src={selectedEnrollment.userId.imageUrl}
-                                                alt="Student"
-                                                className="w-12 h-12 rounded-full object-cover"
-                                            />
-                                            <div>
-                                                <p className="font-medium">{selectedEnrollment.userId.name}</p>
-                                                <p className="text-gray-600 text-sm">{selectedEnrollment.userId.email}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Course Info */}
-                                    <div>
-                                        <h4 className="font-medium text-gray-900 mb-2">Course Information</h4>
-                                        <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                                            <img
-                                                src={selectedEnrollment.courseId.courseThumbnail}
-                                                alt="Course"
-                                                className="w-16 h-16 rounded-lg object-cover"
-                                            />
-                                            <div>
-                                                <p className="font-medium">{selectedEnrollment.courseId.courseTitle}</p>
-                                                <p className="text-green-600 font-semibold">₹{selectedEnrollment.courseId.coursePrice}</p>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Transaction Details */}
-                                    <div>
-                                        <h4 className="font-medium text-gray-900 mb-2">Transaction Information</h4>
-                                        <div className="space-y-2 text-sm bg-gray-50 p-3 rounded-lg">
-                                            <p><strong>Transaction ID:</strong> {selectedEnrollment.transactionId}</p>
-                                            <p><strong>Submitted:</strong> {new Date(selectedEnrollment.createdAt).toLocaleString()}</p>
-                                        </div>
-                                    </div>
-
-                                    {/* Payment Screenshot */}
-                                    <div>
-                                        <h4 className="font-medium text-gray-900 mb-2">Payment Screenshot</h4>
-                                        <img
-                                            src={selectedEnrollment.paymentScreenshot}
-                                            alt="Payment Screenshot"
-                                            className="w-full max-w-md mx-auto rounded-lg border"
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Action Buttons */}
-                                <div className="flex gap-3 mt-6 pt-4 border-t">
-                                    <button
-                                        onClick={() => handleApprove(selectedEnrollment._id)}
-                                        disabled={processing}
-                                        className="flex-1 bg-green-500 text-white py-3 px-4 rounded-lg hover:bg-green-600 transition-colors disabled:opacity-50 font-medium"
-                                    >
-                                        {processing ? 'Processing...' : 'Approve'}
-                                    </button>
-                                    <button
-                                        onClick={openRejectModal}
-                                        disabled={processing}
-                                        className="flex-1 bg-red-500 text-white py-3 px-4 rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 font-medium"
-                                    >
-                                        Decline
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* User Details Modal */}
-                {selectedUser && showUserModal && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                        <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                            <div className="p-6">
-                                <div className="flex justify-between items-center mb-6">
-                                    <h3 className="text-xl font-semibold text-gray-900">Student Details</h3>
-                                    <button
-                                        onClick={closeUserModal}
-                                        className="text-gray-400 hover:text-gray-600 transition-colors"
-                                    >
-                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                        </svg>
-                                    </button>
-                                </div>
-
-                                <div className="space-y-6">
-                                    {/* Profile Section */}
-                                    <div className="text-center">
-                                        <img
-                                            src={selectedUser.imageUrl}
-                                            alt={selectedUser.name}
-                                            className="w-24 h-24 rounded-full mx-auto mb-4 object-cover border-4 border-gray-100 shadow-lg"
-                                        />
-                                        <h4 className="text-2xl font-bold text-gray-900 mb-1">{selectedUser.name}</h4>
-                                        <p className="text-gray-600 text-lg">{selectedUser.email}</p>
-                                    </div>
-
-                                    {/* Basic Information */}
-                                    <div className="bg-gray-50 rounded-lg p-4">
-                                        <h5 className="font-semibold text-gray-900 mb-3 text-lg">Basic Information</h5>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div>
-                                                <p className="text-sm font-medium text-gray-500">Full Name</p>
-                                                <p className="text-gray-900 font-medium">{selectedUser.name}</p>
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-medium text-gray-500">Email Address</p>
-                                                <p className="text-gray-900 font-medium">{selectedUser.email}</p>
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-medium text-gray-500">Student ID</p>
-                                                <p className="text-gray-900 font-medium font-mono text-sm">{selectedUser._id}</p>
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-medium text-gray-500">Registration Date</p>
-                                                <p className="text-gray-900 font-medium">
-                                                    {selectedUser.createdAt ? new Date(selectedUser.createdAt).toLocaleDateString('en-US', {
-                                                        year: 'numeric',
-                                                        month: 'long',
-                                                        day: 'numeric'
-                                                    }) : 'Not available'}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Account Status */}
-                                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                                        <h5 className="font-semibold text-green-900 mb-2 flex items-center">
-                                            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                                            </svg>
-                                            Account Status
-                                        </h5>
-                                        <p className="text-green-800">
-                                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                                Active Student
-                                            </span>
-                                        </p>
-                                    </div>
-
-                                    {/* Additional Information (if available) */}
-                                    {selectedUser.resume && (
-                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                            <h5 className="font-semibold text-blue-900 mb-2">Resume/Profile</h5>
-                                            <p className="text-blue-800">{selectedUser.resume}</p>
-                                        </div>
-                                    )}
-
-                                    {/* Enrollment Statistics */}
-                                    <div className="bg-gray-50 rounded-lg p-4">
-                                        <h5 className="font-semibold text-gray-900 mb-3">Enrollment Information</h5>
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                            <div className="text-center p-3 bg-white rounded-lg border">
-                                                <p className="text-2xl font-bold text-blue-600">
-                                                    {selectedUser.enrolledCourses ? selectedUser.enrolledCourses.length : 0}
-                                                </p>
-                                                <p className="text-sm text-gray-600">Total Courses</p>
-                                            </div>
-                                            <div className="text-center p-3 bg-white rounded-lg border">
-                                                <p className="text-2xl font-bold text-green-600">Active</p>
-                                                <p className="text-sm text-gray-600">Enrollment Status</p>
-                                            </div>
-                                            <div className="text-center p-3 bg-white rounded-lg border">
-                                                <p className="text-2xl font-bold text-purple-600">Student</p>
-                                                <p className="text-sm text-gray-600">Account Type</p>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Quick Actions */}
-                                    <div className="bg-gray-50 rounded-lg p-4">
-                                        <h5 className="font-semibold text-gray-900 mb-3">Quick Actions</h5>
-                                        <div className="flex flex-wrap gap-3">
-                                            <button
-                                                onClick={() => window.open(`mailto:${selectedUser.email}`, '_blank')}
-                                                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 transition-colors"
-                                            >
-                                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                                </svg>
-                                                Send Email
-                                            </button>
-                                            <button
-                                                className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors"
-                                                onClick={() => {
-                                                    navigator.clipboard.writeText(selectedUser._id);
-                                                    toast.success('Student ID copied to clipboard');
-                                                }}
-                                            >
-                                                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                                </svg>
-                                                Copy Student ID
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Close Button */}
-                                <div className="flex justify-end mt-6 pt-4 border-t">
-                                    <button
-                                        onClick={closeUserModal}
-                                        className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors font-medium"
-                                    >
-                                        Close
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Rejection Modal */}
-                {selectedEnrollment && showRejectModal && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                        <div className="bg-white rounded-lg p-6 max-w-md w-full">
-                            <h3 className="text-lg font-semibold mb-4 text-gray-900">Decline Enrollment</h3>
-                            <p className="text-sm text-gray-600 mb-4">
-                                Please provide a reason for declining this enrollment request. This will be sent to the student.
-                            </p>
-                            <textarea
-                                value={rejectionReason}
-                                onChange={(e) => setRejectionReason(e.target.value)}
-                                placeholder="Enter reason for rejection..."
-                                className="w-full p-3 border border-gray-300 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                rows="4"
-                            />
-                            <div className="flex justify-end gap-3 mt-6">
-                                <button
-                                    onClick={() => setShowRejectModal(false)}
-                                    disabled={processing}
-                                    className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={() => handleReject(selectedEnrollment._id)}
-                                    disabled={processing}
-                                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    {processing ? 'Declining...' : 'Decline'}
-                                </button>
-                            </div>
-                        </div>
                     </div>
                 )}
             </div>
