@@ -1,7 +1,7 @@
 import { Mail, MapPin, Phone } from "lucide-react";
 import { assets } from '../../assets/assets.js';
-// import { BsInstagram } from "react-icons/bs";
-// import { FaFacebook } from "react-icons/fa";
+import { BsInstagram } from "react-icons/bs";
+import { FaFacebook } from "react-icons/fa";
 
 const Footer = () => {
   return (
@@ -26,12 +26,12 @@ const Footer = () => {
 
           <div className="flex space-x-8 mt-6">
             <a href="https://www.instagram.com/divinehubbofficial/?igsh=YWw0M3BwazkwOWZ6" className="p-3 bg-[#A16D00] rounded-md hover:bg-opacity-80 transition-colors duration-200">
-              {/* <BsInstagram size={20} /> */}
-              <Phone size={20} />
+              <BsInstagram size={20} />
+              {/* <Phone size={20} /> */}
             </a>
             <a href="https://www.facebook.com/people/Shivani/100091967906259/" className="p-3 bg-[#A16D00] rounded-md hover:bg-opacity-80 transition-colors duration-200">
-              {/* <FaFacebook size={20} /> */}
-              <Mail size={20} />
+              <FaFacebook size={20} />
+              {/* <Mail size={20} /> */}
             </a>
             <a href="https://www.google.com/maps/@28.6485043,77.2486615,12.18z?entry=ttu&g_ep=EgoyMDI1MDcxMy4wIKXMDSoASAFQAw%3D%3D" className="p-3 bg-[#A16D00] rounded-md hover:bg-opacity-80 transition-colors duration-200">
               <MapPin size={20} /> 

@@ -125,9 +125,9 @@ const AddCourse = () => {
         setImage(null)
         setChapters([])
         quillRef.current.root.innerHTML = ""
-      } else (
+      } else {
         toast.error(data.message)
-      )
+    }
 
     } catch (error) {
       toast.error(error.message)
@@ -236,7 +236,7 @@ const AddCourse = () => {
                   />
                 </div>
                 <div className="mb-2">
-                  <p>Lecture URL</p>
+                  <p>Whatsapp Group Link</p>
                   <input
                     type="text"
                     className="mt-1 block w-full border rounded py-1 px-2"

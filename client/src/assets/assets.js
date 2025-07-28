@@ -114,7 +114,7 @@ export const dummyTestimonial = [
         feedback: 'This course wasn’t just about learning tarot or astrology—it was a deep spiritual journey. I discovered so much about myself through the process. The instructors are genuinely connected to their craft, and it shows in the way they teach. Every session felt like soul work.',
     },
     {
-        name: 'Priya Sharma, 39, Delhi',
+        name: 'Priyansh Sharma, 39, Delhi',
         role: 'SWE 2 @ Google',
         image: assets.profile_img_3,
         rating: 4.5,

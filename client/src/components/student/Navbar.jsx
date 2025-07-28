@@ -61,8 +61,8 @@ const Navbar = () => {
                 className="px-4 py-2 text-sm font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-all duration-200 hover:shadow-md"
               >
                 {isEducator ? 'Educator Dashboard' : 'Become Educator'}
-              </button>
-               */}
+              </button> */}
+              
               {/* Enhanced My Enrollments Button */}
               <Link 
                 to='/my-enrollments'

@@ -8,6 +8,8 @@ import Dashboard from './pages/educator/Dashboard'
 import AddCourse from './pages/educator/AddCourse'
 import MyCourses from './pages/educator/MyCourses'
 import StudentsEnrolled from './pages/educator/StudentsEnrolled'
+import Calender from './pages/educator/Calender'
+
 import Educator from './pages/educator/Educator'
 import 'quill/dist/quill.snow.css'
 import 'react-toastify/dist/ReactToastify.css';
@@ -17,6 +19,7 @@ import MyEnrollments from './pages/student/MyEnrollments'
 import Loading from './components/student/Loading'
 import QRPaymentPage from './pages/student/QRPaymentPage'
 import EnrollmentStatus from './pages/student/EnrollmentStatus'
+import { CalendarRange } from 'lucide-react'
 
 const App = () => {
   const isEducatorRoute = useMatch('/educator/*');
@@ -46,6 +49,8 @@ const App = () => {
           <Route path='add-course' element={<AddCourse />} />
           <Route path='my-courses' element={<MyCourses />} />
           <Route path='student-enrolled' element={<StudentsEnrolled />} />
+          <Route path='calender' element={<Calender />} />
+
         </Route>
       </Routes>
     </div>
