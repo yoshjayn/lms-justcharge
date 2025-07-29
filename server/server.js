@@ -8,7 +8,8 @@ import { clerkMiddleware } from '@clerk/express'
 import { clerkWebhooks, stripeWebhooks } from './controllers/webhooks.js'
 import educatorRouter from './routes/educatorRoutes.js'
 import courseRouter from './routes/courseRoute.js'
-import bookingRoutes from './routes/bookingRoutes.js';
+import bookingRouter from './routes/bookingRoutes.js' // ✅ ADD THIS LINE
+
 // Initialize Express
 const app = express()
 
@@ -28,7 +29,7 @@ app.post('/stripe', express.raw({ type: 'application/json' }), stripeWebhooks)
 app.use('/api/educator', educatorRouter)
 app.use('/api/course', courseRouter)
 app.use('/api/user', userRouter)
-app.use('/api/booking', bookingRoutes);
+app.use('/api/booking', bookingRouter) // ✅ ADD THIS LINE
 
 // Port
 const PORT = process.env.PORT || 5000
