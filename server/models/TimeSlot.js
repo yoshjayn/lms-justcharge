@@ -1,7 +1,9 @@
 import mongoose from 'mongoose';
 
 const timeSlotSchema = new mongoose.Schema({
-  educatorId: { type: String, ref: 'User', required: true },
+  // Educator info - SIMPLIFIED (static value for single educator)
+  educatorId: { type: String, ref: 'User', required: true, default: 'single-educator' },
+  
   date: { type: Date, required: true },
   timeSlot: { type: String, required: true },
   isBlocked: { type: Boolean, default: false },
@@ -10,6 +12,7 @@ const timeSlotSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
-timeSlotSchema.index({ educatorId: 1, date: 1, timeSlot: 1 }, { unique: true });
+// SIMPLIFIED index - removed educatorId uniqueness since it's always the same
+timeSlotSchema.index({ date: 1, timeSlot: 1 }, { unique: true });
 
 export default mongoose.model('TimeSlot', timeSlotSchema);

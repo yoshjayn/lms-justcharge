@@ -3,128 +3,6 @@ import TimeSlot from '../models/TimeSlot.js';
 import User from '../models/User.js';
 import { v2 as cloudinary } from 'cloudinary';
 
-// Get pending bookings for educator
-export const getPendingBookings = async (req, res) => {
-    try {
-        const educatorId = req.auth.userId;
-        console.log('📋 Fetching pending bookings for educator:', educatorId);
-
-        const pendingBookings = await Booking.find({
-            educatorId,
-            status: 'pending'
-        })
-        .populate('studentId', 'name email imageUrl createdAt')
-        .sort({ createdAt: -1 });
-
-        console.log('📊 Found pending bookings:', pendingBookings.length);
-
-        res.json({ 
-            success: true, 
-            bookings: pendingBookings 
-        });
-
-    } catch (error) {
-        console.error('Get pending bookings error:', error);
-        res.json({ success: false, message: 'Error fetching pending bookings' });
-    }
-};
-
-// Block/unblock time slot - THIS IS THE FUNCTION YOUR CALENDAR NEEDS
-export const manageTimeSlot = async (req, res) => {
-    try {
-        const { date, timeSlot, isBlocked, blockReason } = req.body;
-        const educatorId = req.auth.userId;
-
-        console.log('🕐 Managing slot:', { educatorId, date, timeSlot, isBlocked });
-
-        if (isBlocked) {
-            // Block the slot
-            const existingSlot = await TimeSlot.findOne({
-                educatorId,
-                date: new Date(date),
-                timeSlot
-            });
-
-            if (existingSlot && existingSlot.bookingId) {
-                return res.json({ 
-                    success: false, 
-                    message: 'Cannot block slot - already has a booking' 
-                });
-            }
-
-            await TimeSlot.findOneAndUpdate(
-                { educatorId, date: new Date(date), timeSlot },
-                { 
-                    isBlocked: true, 
-                    blockReason: blockReason || 'Blocked by educator'
-                },
-                { upsert: true }
-            );
-
-            console.log('🚫 Slot blocked:', { date, timeSlot });
-
-        } else {
-            // Unblock the slot
-            await TimeSlot.deleteOne({
-                educatorId,
-                date: new Date(date),
-                timeSlot,
-                isBlocked: true
-            });
-
-            console.log('✅ Slot unblocked:', { date, timeSlot });
-        }
-
-        res.json({ 
-            success: true, 
-            message: `Slot ${isBlocked ? 'blocked' : 'unblocked'} successfully` 
-        });
-
-    } catch (error) {
-        console.error('❌ Manage time slot error:', error);
-        res.json({ success: false, message: 'Error managing time slot' });
-    }
-};
-
-// Get educator's schedule
-export const getEducatorSchedule = async (req, res) => {
-    try {
-        const educatorId = req.auth.userId;
-        const { startDate, endDate } = req.query;
-
-        console.log('📅 Fetching schedule for educator:', educatorId);
-
-        const query = { educatorId };
-        if (startDate && endDate) {
-            query.date = {
-                $gte: new Date(startDate),
-                $lte: new Date(endDate)
-            };
-        }
-
-        const slots = await TimeSlot.find(query)
-            .populate({
-                path: 'bookingId',
-                populate: {
-                    path: 'studentId',
-                    select: 'name email'
-                }
-            })
-            .sort({ date: 1, timeSlot: 1 });
-
-        console.log('📊 Schedule slots found:', slots.length);
-
-        res.json({ 
-            success: true, 
-            schedule: slots 
-        });
-
-    } catch (error) {
-        console.error('❌ Get educator schedule error:', error);
-        res.json({ success: false, message: 'Error fetching schedule' });
-    }
-};
-
 // Process booking request (accept/decline)
 export const processBookingRequest = async (req, res) => {
     try {
@@ -178,7 +56,6 @@ const ALL_TIME_SLOTS = [
   '06:00 PM', '06:30 PM', '07:00 PM'
 ];
 
-// Get available slots for a specific date
 // export const getAvailableSlots = async (req, res) => {
 //   try {
 //     const { date } = req.params;
@@ -241,8 +118,8 @@ const ALL_TIME_SLOTS = [
 //   }
 // };
 
+// Get available slots for a specific date
 
-// Replace your existing getAvailableSlots function with this:
 
 export const getAvailableSlots = async (req, res) => {
   try {
@@ -329,6 +206,7 @@ export const getAvailableSlots = async (req, res) => {
     });
   }
 };
+
 // Create a new booking with QR payment
 export const createBooking = async (req, res) => {
   try {
@@ -552,7 +430,6 @@ export const getAllBookings = async (req, res) => {
   }
 };
 
-// Update booking status (Admin only)
 export const updateBookingStatus = async (req, res) => {
   try {
     const { bookingId } = req.params;
@@ -643,3 +520,530 @@ export const cancelBooking = async (req, res) => {
     });
   }
 };
+
+
+// for reflecting slot bookings and website bookings to educator dashboard
+
+export const createWebsiteBooking = async (req, res) => {
+    try {
+        console.log('📝 Creating website booking...');
+        console.log('Request body:', req.body);
+        console.log('File received:', req.file ? 'Yes' : 'No');
+
+        const {
+            serviceId,
+            serviceTitle,
+            servicePrice,
+            serviceDuration,
+            selectedDate,
+            selectedTime,
+            transactionId,
+            whatsappNumber,
+            timestamp,
+            // New user detail fields
+            fullName,
+            dateOfBirth,
+            placeOfBirth,
+            timeOfBirth
+        } = req.body;
+
+        // Validate required fields (including new ones)
+        if (!serviceId || !serviceTitle || !servicePrice || !serviceDuration || 
+            !selectedDate || !selectedTime || !transactionId || !whatsappNumber ||
+            !fullName || !dateOfBirth || !placeOfBirth || !timeOfBirth) {
+            return res.status(400).json({
+                success: false,
+                message: 'All fields are required including personal details'
+            });
+        }
+
+        // Validate payment screenshot
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                message: 'Payment screenshot is required'
+            });
+        }
+
+        // Validate WhatsApp number (10 digits)
+        if (!/^\d{10}$/.test(whatsappNumber)) {
+            return res.status(400).json({
+                success: false,
+                message: 'WhatsApp number must be exactly 10 digits'
+            });
+        }
+
+        // Validate transaction ID (alphanumeric, min 8 chars)
+        if (!/^[a-zA-Z0-9]{8,}$/.test(transactionId)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Transaction ID must be at least 8 alphanumeric characters'
+            });
+        }
+
+        // Validate name (min 2 chars)
+        if (fullName.trim().length < 2) {
+            return res.status(400).json({
+                success: false,
+                message: 'Full name must be at least 2 characters long'
+            });
+        }
+
+        // Check if slot is still available
+        const bookingDate = new Date(selectedDate);
+        const startOfDay = new Date(bookingDate);
+        startOfDay.setHours(0, 0, 0, 0);
+        
+        const endOfDay = new Date(bookingDate);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        // Check existing bookings
+        const existingBooking = await Booking.findOne({
+            selectedDate: {
+                $gte: startOfDay,
+                $lte: endOfDay
+            },
+            selectedTime,
+            status: { $in: ['pending', 'accepted'] }
+        });
+
+        if (existingBooking) {
+            return res.status(400).json({
+                success: false,
+                message: 'This time slot is no longer available'
+            });
+        }
+
+        // Check blocked slots
+        const blockedSlot = await TimeSlot.findOne({
+            date: {
+                $gte: startOfDay,
+                $lte: endOfDay
+            },
+            timeSlot: selectedTime,
+            isBlocked: true
+        });
+
+        if (blockedSlot) {
+            return res.status(400).json({
+                success: false,
+                message: 'This time slot is currently blocked'
+            });
+        }
+
+        // Upload screenshot to Cloudinary
+        let cloudinaryResult;
+        try {
+            cloudinaryResult = await cloudinary.uploader.upload(req.file.path, {
+                folder: 'astrology_website_bookings',
+                resource_type: 'image'
+            });
+            
+            console.log('☁️ Cloudinary upload successful:', cloudinaryResult.public_id);
+        } catch (cloudinaryError) {
+            console.error('❌ Cloudinary upload failed:', cloudinaryError);
+            return res.status(500).json({
+                success: false,
+                message: 'Failed to upload payment screenshot'
+            });
+        }
+
+        // Create booking with enhanced user details
+        const newBooking = new Booking({
+            studentId: null, // Website bookings don't have student ID
+            educatorId: 'single-educator', // Static value since only one educator
+            serviceType: serviceTitle,
+            selectedDate: bookingDate,
+            selectedTime,
+            duration: serviceDuration,
+            amount: parseInt(servicePrice),
+            status: 'pending',
+            paymentDetails: {
+                transactionId: transactionId.trim(),
+                screenshotUrl: cloudinaryResult.secure_url,
+                paymentStatus: 'pending'
+            },
+            contactDetails: {
+                whatsappNumber,
+                email: null,
+                addedToWhatsAppGroup: false
+            },
+            // Enhanced user details for astrology consultation
+            userDetails: {
+                fullName: fullName.trim(),
+                dateOfBirth: new Date(dateOfBirth),
+                placeOfBirth: placeOfBirth.trim(),
+                timeOfBirth: timeOfBirth // Stored as string in HH:MM format
+            },
+            notes: `Website booking - Service: ${serviceTitle}`,
+            createdAt: timestamp ? new Date(parseInt(timestamp)) : new Date(),
+            isWebsiteBooking: true,
+            websiteBookingData: {
+                serviceId: parseInt(serviceId),
+                submittedAt: new Date()
+            }
+        });
+
+        await newBooking.save();
+
+        console.log('✅ Website booking created successfully:', newBooking._id);
+
+        res.status(201).json({
+            success: true,
+            message: 'Booking submitted successfully! We will contact you soon for confirmation.',
+            bookingId: newBooking._id,
+            data: {
+                serviceTitle,
+                selectedDate,
+                selectedTime,
+                amount: servicePrice,
+                customerName: fullName.trim(),
+                whatsappNumber
+            }
+        });
+
+    } catch (error) {
+        console.error('❌ Create website booking error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error while creating booking',
+            error: error.message
+        });
+    }
+};
+
+
+// export const getBookingDetails = async (req, res) => {
+//     try {
+//         const { bookingId } = req.params;
+
+//         const booking = await Booking.findOne({
+//             _id: bookingId
+//         }).populate('studentId', 'name email imageUrl createdAt');
+
+//         if (!booking) {
+//             return res.status(404).json({ 
+//                 success: false, 
+//                 message: 'Booking not found' 
+//             });
+//         }
+
+//         // Format booking details for frontend with enhanced user info
+//         const bookingDetails = {
+//             ...booking.toObject(),
+//             customerInfo: {
+//                 name: booking.userDetails?.fullName || (booking.studentId ? booking.studentId.name : 'Website Customer'),
+//                 email: booking.studentId ? booking.studentId.email : booking.contactDetails?.email || 'N/A',
+//                 whatsappNumber: booking.contactDetails?.whatsappNumber || 'N/A',
+//                 // New astrology-specific details
+//                 dateOfBirth: booking.userDetails?.dateOfBirth || null,
+//                 placeOfBirth: booking.userDetails?.placeOfBirth || 'N/A',
+//                 timeOfBirth: booking.userDetails?.timeOfBirth || 'N/A',
+//                 joinedDate: booking.studentId ? booking.studentId.createdAt : booking.createdAt
+//             },
+//             sessionInfo: {
+//                 service: booking.serviceType,
+//                 date: booking.selectedDate,
+//                 time: booking.selectedTime,
+//                 duration: booking.duration,
+//                 amount: booking.amount
+//             },
+//             paymentInfo: {
+//                 transactionId: booking.paymentDetails?.transactionId,
+//                 screenshotUrl: booking.paymentDetails?.screenshotUrl,
+//                 paymentStatus: booking.paymentDetails?.paymentStatus
+//             },
+//             bookingSource: booking.isWebsiteBooking ? 'Website' : 'LMS Platform'
+//         };
+
+//         res.json({ 
+//             success: true, 
+//             booking: bookingDetails 
+//         });
+
+//     } catch (error) {
+//         console.error('Get booking details error:', error);
+//         res.status(500).json({ 
+//             success: false, 
+//             message: 'Error fetching booking details' 
+//         });
+//     }
+// };
+
+export const getBookingDetails = async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+
+        const booking = await Booking.findOne({
+            _id: bookingId
+        }).populate('studentId', 'name email imageUrl createdAt');
+
+        if (!booking) {
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Booking not found' 
+            });
+        }
+
+        // Format booking details for frontend - SIMPLIFIED (removed email, source, status)
+        const bookingDetails = {
+            ...booking.toObject(),
+            customerInfo: {
+                name: booking.userDetails?.fullName || (booking.studentId ? booking.studentId.name : 'Website Customer'),
+                whatsappNumber: booking.contactDetails?.whatsappNumber || 'N/A',
+                // Astrology-specific details
+                dateOfBirth: booking.userDetails?.dateOfBirth || null,
+                placeOfBirth: booking.userDetails?.placeOfBirth || 'N/A',
+                timeOfBirth: booking.userDetails?.timeOfBirth || 'N/A',
+                joinedDate: booking.studentId ? booking.studentId.createdAt : booking.createdAt
+            },
+            sessionInfo: {
+                service: booking.serviceType,
+                date: booking.selectedDate,
+                time: booking.selectedTime,
+                duration: booking.duration,
+                amount: booking.amount
+            },
+            paymentInfo: {
+                transactionId: booking.paymentDetails?.transactionId,
+                screenshotUrl: booking.paymentDetails?.screenshotUrl
+                // Removed paymentStatus from response
+            },
+            // Include read status for checkbox
+            isRead: booking.isRead || false
+            // Removed bookingSource from response
+        };
+
+        res.json({ 
+            success: true, 
+            booking: bookingDetails 
+        });
+
+    } catch (error) {
+        console.error('Get booking details error:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error fetching booking details' 
+        });
+    }
+};
+
+
+// export const markBookingAsRead = async (req, res) => {
+//     try {
+//         const { bookingId } = req.params;
+
+//         // Find the current booking to check its current read status
+//         const currentBooking = await Booking.findOne({ _id: bookingId });
+        
+//         if (!currentBooking) {
+//             return res.status(404).json({ 
+//                 success: false, 
+//                 message: 'Booking not found' 
+//             });
+//         }
+
+//         // Toggle the read status (if currently read, make unread; if unread, make read)
+//         const newReadStatus = !currentBooking.isRead;
+
+//         const booking = await Booking.findOneAndUpdate(
+//             { _id: bookingId },
+//             { 
+//                 isRead: newReadStatus,
+//                 readAt: newReadStatus ? new Date() : null // Set readAt only when marking as read
+//             },
+//             { new: true }
+//         );
+
+//         res.json({ 
+//             success: true, 
+//             message: `Booking marked as ${newReadStatus ? 'read' : 'unread'}`,
+//             isRead: newReadStatus
+//         });
+
+//     } catch (error) {
+//         console.error('Mark booking as read error:', error);
+//         res.status(500).json({ 
+//             success: false, 
+//             message: 'Error updating read status' 
+//         });
+//     }
+// };
+
+export const getPendingBookings = async (req, res) => {
+    try {
+        console.log('📋 Fetching ALL pending bookings (single educator system)');
+
+        // REMOVED educatorId filter - get ALL pending bookings
+        const pendingBookings = await Booking.find({
+            status: 'pending'
+        })
+        .populate('studentId', 'name email imageUrl createdAt')
+        .sort({ createdAt: -1 }); // Sort by newest first (epoch timestamp)
+
+        console.log('📊 Found pending bookings:', pendingBookings.length);
+
+        // Add read status tracking and customer info
+        const bookingsWithReadStatus = pendingBookings.map(booking => ({
+            ...booking.toObject(),
+            isRead: booking.isRead || false,
+            isWebsiteBooking: booking.isWebsiteBooking || false,
+            customerName: booking.studentId ? booking.studentId.name : 'Website Customer',
+            customerEmail: booking.studentId ? booking.studentId.email : booking.contactDetails?.email || 'N/A',
+            customerContact: booking.contactDetails?.whatsappNumber || 'N/A'
+        }));
+
+        res.json({ 
+            success: true, 
+            bookings: bookingsWithReadStatus 
+        });
+
+    } catch (error) {
+        console.error('Get pending bookings error:', error);
+        res.json({ success: false, message: 'Error fetching pending bookings' });
+    }
+};
+
+export const markBookingAsRead = async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+
+        // REMOVED educatorId filter since single educator
+        const booking = await Booking.findOneAndUpdate(
+            { _id: bookingId },
+            { 
+                isRead: true,
+                readAt: new Date()
+            },
+            { new: true }
+        );
+
+        if (!booking) {
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Booking not found' 
+            });
+        }
+
+        res.json({ 
+            success: true, 
+            message: 'Booking marked as read' 
+        });
+
+    } catch (error) {
+        console.error('Mark booking as read error:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Error marking booking as read' 
+        });
+    }
+};
+
+
+
+export const manageTimeSlot = async (req, res) => {
+    try {
+        const { date, timeSlot, isBlocked, blockReason } = req.body;
+
+        console.log('🕐 Managing slot:', { date, timeSlot, isBlocked });
+
+        if (isBlocked) {
+            // Block the slot - check for existing bookings first
+            const existingBooking = await Booking.findOne({
+                selectedDate: new Date(date),
+                selectedTime: timeSlot,
+                status: { $in: ['pending', 'accepted'] }
+            });
+
+            if (existingBooking) {
+                return res.json({ 
+                    success: false, 
+                    message: 'Cannot block slot - already has a booking' 
+                });
+            }
+
+            // Create or update blocked slot (removed educatorId)
+            await TimeSlot.findOneAndUpdate(
+                { date: new Date(date), timeSlot },
+                { 
+                    isBlocked: true, 
+                    blockReason: blockReason || 'Blocked by educator',
+                    educatorId: 'single-educator' // Static value
+                },
+                { upsert: true }
+            );
+
+            console.log('🚫 Slot blocked:', { date, timeSlot });
+
+        } else {
+            // Unblock the slot (removed educatorId filter)
+            await TimeSlot.deleteOne({
+                date: new Date(date),
+                timeSlot,
+                isBlocked: true
+            });
+
+            console.log('✅ Slot unblocked:', { date, timeSlot });
+        }
+
+        res.json({ 
+            success: true, 
+            message: `Slot ${isBlocked ? 'blocked' : 'unblocked'} successfully` 
+        });
+
+    } catch (error) {
+        console.error('❌ Manage time slot error:', error);
+        res.json({ success: false, message: 'Error managing time slot' });
+    }
+};
+
+export const getEducatorSchedule = async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+
+        console.log('📅 Fetching schedule for single educator system');
+
+        const query = {};
+        if (startDate && endDate) {
+            query.date = {
+                $gte: new Date(startDate),
+                $lte: new Date(endDate)
+            };
+        }
+
+        // REMOVED educatorId filter - get ALL time slots
+        const slots = await TimeSlot.find(query)
+            .populate({
+                path: 'bookingId',
+                populate: {
+                    path: 'studentId',
+                    select: 'name email'
+                }
+            })
+            .sort({ date: 1, timeSlot: 1 });
+
+        console.log('📊 Schedule slots found:', slots.length);
+
+        res.json({ 
+            success: true, 
+            schedule: slots 
+        });
+
+    } catch (error) {
+        console.error('❌ Get educator schedule error:', error);
+        res.json({ success: false, message: 'Error fetching schedule' });
+    }
+};
+
+export const deleteBookings = async (req, res) => {
+    try {
+        const result = await Booking.deleteMany({ isWebsiteBooking: true });
+        res.json({ 
+            success: true, 
+            message: `Deleted ${result.deletedCount} website bookings`,
+            deletedCount: result.deletedCount
+        });
+    } catch (error) {
+        res.json({ success: false, message: error.message });
+    }
+}
