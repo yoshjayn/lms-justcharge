@@ -5,7 +5,19 @@ import { toast } from 'react-toastify';
 import Loading from '../../components/student/Loading';
 import Calendar from 'react-calendar';
 import 'react-calendar/dist/Calendar.css';
-import { MessageCircle, Phone, Calendar as CalendarIcon, X, CheckCircle, XCircle } from 'lucide-react';
+import { 
+    MessageCircle, 
+    Phone, 
+    Calendar as CalendarIcon, 
+    X, 
+    CheckCircle, 
+    XCircle, 
+    Eye,
+    User,
+    Clock,
+    CreditCard,
+    MapPin
+} from 'lucide-react';
 
 const Calender = () => {
     const { backendUrl, getToken, isEducator } = useContext(AppContext);
@@ -17,9 +29,14 @@ const Calender = () => {
 
     // Block/Manage Slots Tab State
     const [selectedDate, setSelectedDate] = useState(new Date());
-    const [selectedTime, setSelectedTime] = useState(''); // Store selected time slot
+    const [selectedTime, setSelectedTime] = useState('');
     const [blockedSlots, setBlockedSlots] = useState([]);
+    
+    // New Bookings Tab State
     const [pendingBookings, setPendingBookings] = useState([]);
+    const [selectedBooking, setSelectedBooking] = useState(null);
+    const [showBookingModal, setShowBookingModal] = useState(false);
+    const [loadingBookingDetails, setLoadingBookingDetails] = useState(false);
 
     // Time slots array
     const timeSlots = [
@@ -72,6 +89,7 @@ const Calender = () => {
 
             if (response.data.success) {
                 setPendingBookings(response.data.bookings);
+                console.log('📋 Pending bookings:', response.data.bookings);
             }
         } catch (error) {
             console.error('Error fetching pending bookings:', error);
@@ -97,26 +115,50 @@ const Calender = () => {
         }
     };
 
-    // Handle time slot selection
+    // Handle booking tile click
+    const handleBookingClick = async (booking) => {
+        setLoadingBookingDetails(true);
+        setShowBookingModal(true);
+        
+        try {
+            const token = await getToken();
+
+            // Fetch detailed booking information
+            const response = await axios.get(`${backendUrl}/api/booking/details/${booking._id}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (response.data.success) {
+                setSelectedBooking(response.data.booking);
+            }
+        } catch (error) {
+            console.error('Error fetching booking details:', error);
+            toast.error('Error loading booking details');
+        } finally {
+            setLoadingBookingDetails(false);
+        }
+    };
+
+    // Handle time slot blocking/unblocking
     const handleTimeSlotClick = (timeSlot) => {
         const slotInfo = getSlotInfo(timeSlot);
         const isBlocked = isSlotBlocked(timeSlot);
 
-        if (isBlocked && slotInfo?.isBlocked) {
-            // If slot is blocked, unblock it
-            handleUnblockSlot(slotInfo);
-        } else if (!isBlocked) {
-            // If slot is available, select it for blocking
-            setSelectedTime(timeSlot);
-            console.log('📋 Selected time slot for blocking:', timeSlot);
+        if (slotInfo && slotInfo.bookingId) {
+            toast.info('This slot has a booking and cannot be modified');
+            return;
         }
-        // If slot has a booking, do nothing (disabled)
+
+        if (isBlocked) {
+            handleUnblockSlot(slotInfo);
+        } else {
+            setSelectedTime(timeSlot);
+        }
     };
 
-    // Handle "Block Slot" button click
-    const handleBookSlot = async () => {
+    const handleBlockSlot = async () => {
         if (!selectedTime) {
-            toast.error('Please select a time slot to block');
+            toast.error('Please select a time slot first');
             return;
         }
 
@@ -134,8 +176,8 @@ const Calender = () => {
 
             if (response.data.success) {
                 toast.success(`Time slot ${selectedTime} blocked successfully`);
-                setSelectedTime(''); // Clear selection
-                fetchBlockedSlots(); // Refresh blocked slots
+                setSelectedTime('');
+                fetchBlockedSlots();
             } else {
                 toast.error(response.data.message);
             }
@@ -181,6 +223,13 @@ const Calender = () => {
         return blockedSlots.find(slot => slot.timeSlot === timeSlot);
     };
 
+    // Disable past dates
+    const isDateDisabled = ({ date }) => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return date < today;
+    };
+
     if (loading) {
         return <Loading />;
     }
@@ -195,7 +244,7 @@ const Calender = () => {
                     <button
                         onClick={() => {
                             setActiveTab('manage');
-                            setSelectedTime(''); // Clear selection when switching tabs
+                            setSelectedTime('');
                         }}
                         className={`px-6 py-2 rounded-md font-medium transition-colors ${
                             activeTab === 'manage'
@@ -207,13 +256,18 @@ const Calender = () => {
                     </button>
                     <button
                         onClick={() => setActiveTab('bookings')}
-                        className={`px-6 py-2 rounded-md font-medium transition-colors ${
+                        className={`px-6 py-2 rounded-md font-medium transition-colors relative ${
                             activeTab === 'bookings'
                                 ? 'bg-white text-blue-600 shadow-sm'
                                 : 'text-gray-600 hover:text-gray-900'
                         }`}
                     >
-                        New Bookings ({pendingBookings.length})
+                        New Bookings
+                        {pendingBookings.length > 0 && (
+                            <span className="ml-2 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                                {pendingBookings.length}
+                            </span>
+                        )}
                     </button>
                 </div>
 
@@ -229,7 +283,7 @@ const Calender = () => {
                                     <Calendar
                                         onChange={(date) => {
                                             setSelectedDate(date);
-                                            setSelectedTime(''); // Clear time selection when date changes
+                                            setSelectedTime('');
                                         }}
                                         value={selectedDate}
                                         className="calendar-custom w-full"
@@ -238,86 +292,72 @@ const Calender = () => {
                                                 ? "bg-[#A16D00] text-white rounded-full"
                                                 : ""
                                         }
-                                        tileDisabled={({ date }) => {
-                                            const today = new Date();
-                                            today.setHours(0, 0, 0, 0);
-                                            return date < today;
-                                        }}
+                                        tileDisabled={isDateDisabled}
+                                        nextLabel=">"
+                                        prevLabel="<"
                                     />
                                 </div>
                             </div>
 
-                            {/* Time Slots */}
+                            {/* Time Slots Management */}
                             <div className="border rounded-md p-3 sm:p-5 flex flex-col bg-white shadow-sm"
                                 style={{ width: "100%", maxWidth: "434px", height: "380px", margin: "0 auto" }}>
-                                <h2 className="text-lg font-semibold mb-4">
-                                    Manage Time Slots
-                                    {selectedTime && (
-                                        <span className="text-sm text-blue-600 ml-2">
-                                            (Selected: {selectedTime})
-                                        </span>
-                                    )}
-                                </h2>
-                                <div className="flex flex-col gap-3 overflow-y-auto">
-                                    {timeSlots.map((time) => {
-                                        const slotInfo = getSlotInfo(time);
-                                        const isBlocked = isSlotBlocked(time);
-                                        const isSelected = selectedTime === time;
-
+                                <h2 className="text-lg font-semibold mb-4">Select A Time</h2>
+                                
+                                <div className="flex flex-col gap-3 overflow-y-auto mb-4">
+                                    {timeSlots.map((timeSlot) => {
+                                        const slotInfo = getSlotInfo(timeSlot);
+                                        const isBlocked = isSlotBlocked(timeSlot);
+                                        const hasBooking = slotInfo && slotInfo.bookingId;
+                                        
                                         return (
-                                            <div key={time} className="relative">
-                                                <button
-                                                    onClick={() => handleTimeSlotClick(time)}
-                                                    disabled={slotInfo?.bookingId} // Disable if has booking
-                                                    className={`w-full border rounded py-3 text-center transition ${
-                                                        slotInfo?.bookingId
-                                                            ? "bg-red-100 text-red-800 border-red-300 cursor-not-allowed"
-                                                            : isSelected
-                                                                ? "bg-blue-100 text-blue-800 border-blue-300 ring-2 ring-blue-500"
-                                                                : isBlocked
-                                                                    ? "bg-yellow-100 text-yellow-800 border-yellow-300 hover:bg-yellow-200"
-                                                                    : "bg-white text-[#5E4326] hover:bg-gray-50 border-gray-300"
-                                                    }`}
-                                                >
-                                                    <span className="block">{time}</span>
-                                                    {slotInfo?.bookingId && <span className="text-xs">Booked</span>}
-                                                    {slotInfo?.isBlocked && !slotInfo?.bookingId && (
-                                                        <span className="text-xs">Blocked (Click to unblock)</span>
-                                                    )}
-                                                    {isSelected && !isBlocked && (
-                                                        <span className="text-xs">Selected for blocking</span>
-                                                    )}
-                                                </button>
-                                            </div>
+                                            <button
+                                                key={timeSlot}
+                                                onClick={() => handleTimeSlotClick(timeSlot)}
+                                                className={`border rounded py-3 text-center transition relative ${
+                                                    selectedTime === timeSlot
+                                                        ? "bg-[#A16D00] text-white border-[#A16D00]"
+                                                        : hasBooking
+                                                            ? "bg-red-100 text-red-600 border-red-200 cursor-not-allowed"
+                                                            : isBlocked
+                                                                ? "bg-yellow-100 text-yellow-600 border-yellow-200 hover:bg-yellow-200"
+                                                                : "bg-white text-[#5E4326] hover:bg-gray-50 border-gray-300"
+                                                }`}
+                                            >
+                                                <span className="block font-medium">{timeSlot}</span>
+                                                {hasBooking && (
+                                                    <span className="text-xs text-red-500 block mt-1">Booked</span>
+                                                )}
+                                                {isBlocked && !hasBooking && (
+                                                    <span className="text-xs text-yellow-600 block mt-1">Blocked</span>
+                                                )}
+                                            </button>
                                         );
                                     })}
                                 </div>
-                            </div>
-                        </div>
 
-                        {/* Block Slot Button */}
-                        <div className="flex justify-center lg:justify-end w-full max-w-[1190px]">
-                            <button
-                                onClick={handleBookSlot}
-                                disabled={!selectedTime || processing}
-                                className="flex items-center gap-2 bg-[#5E4326] text-white px-8 py-3 rounded hover:bg-[#4a3723] transition w-full sm:w-auto disabled:opacity-50 disabled:cursor-not-allowed"
-                                style={{ maxWidth: "323px", height: "53px" }}
-                            >
-                                {processing ? (
-                                    <>
-                                        <svg className="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                        </svg>
-                                        Blocking...
-                                    </>
-                                ) : (
-                                    <>
-                                        Block Slot
-                                        {selectedTime && <span className="ml-1">({selectedTime})</span>}
-                                    </>
-                                )}
-                            </button>
+                                {/* Block Button */}
+                                <button
+                                    onClick={handleBlockSlot}
+                                    disabled={!selectedTime || processing}
+                                    className="w-full bg-[#5E4326] text-white py-3 px-4 rounded hover:bg-[#4a3723] disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                                >
+                                    {processing ? (
+                                        <>
+                                            <svg className="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                            </svg>
+                                            Blocking...
+                                        </>
+                                    ) : (
+                                        <>
+                                            Block Slot
+                                            {selectedTime && <span className="ml-1">({selectedTime})</span>}
+                                        </>
+                                    )}
+                                </button>
+                            </div>
                         </div>
 
                         {/* Instructions */}
@@ -338,89 +378,225 @@ const Calender = () => {
                 {activeTab === 'bookings' && (
                     <div className="space-y-6">
                         {pendingBookings.length === 0 ? (
-                            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
-                                <CalendarIcon className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                                <h3 className="text-lg font-medium text-gray-900 mb-2">No pending bookings</h3>
+                            <div className="bg-white rounded-lg shadow-sm p-8 text-center">
+                                <CalendarIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                                <h3 className="text-lg font-medium text-gray-900 mb-2">No New Bookings</h3>
                                 <p className="text-gray-500">New booking requests will appear here for your review.</p>
                             </div>
                         ) : (
-                            pendingBookings.map((booking) => (
-                                <div key={booking._id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                                    <div className="flex flex-col lg:flex-row gap-6">
-                                        {/* Booking Info */}
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-4 mb-4">
-                                                {/* Handle both LMS users and website users */}
-                                                <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center">
-                                                    {booking.studentId?.imageUrl ? (
-                                                        <img
-                                                            src={booking.studentId.imageUrl}
-                                                            alt="Student"
-                                                            className="w-12 h-12 rounded-full object-cover"
-                                                        />
-                                                    ) : (
-                                                        <span className="text-gray-600 font-medium">
-                                                            {booking.studentId?.name?.charAt(0) || 'W'}
+                            <div className="grid gap-4">
+                                {pendingBookings.map((booking) => (
+                                    <div
+                                        key={booking._id}
+                                        onClick={() => handleBookingClick(booking)}
+                                        className={`bg-white rounded-lg shadow-sm border p-4 cursor-pointer hover:shadow-md transition-shadow ${
+                                            !booking.isRead ? 'border-l-4 border-l-blue-500 bg-blue-50' : 'border-gray-200'
+                                        }`}
+                                    >
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-3 mb-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <User className="h-4 w-4 text-gray-500" />
+                                                        <span className="font-medium text-gray-900">
+                                                            {booking.customerName}
+                                                        </span>
+                                                    </div>
+                                                    {!booking.isRead && (
+                                                        <span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">
+                                                            New
+                                                        </span>
+                                                    )}
+                                                    {booking.isWebsiteBooking && (
+                                                        <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
+                                                            Website
                                                         </span>
                                                     )}
                                                 </div>
-                                                <div>
-                                                    <h3 className="font-semibold text-lg text-gray-900">
-                                                        {booking.studentId?.name || 'Website User'}
-                                                    </h3>
-                                                    <p className="text-gray-600">
-                                                        {booking.studentId?.email || 'No email provided'}
-                                                    </p>
+                                                
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600">
+                                                    <div className="flex items-center gap-2">
+                                                        <CalendarIcon className="h-4 w-4" />
+                                                        <span>{new Date(booking.selectedDate).toLocaleDateString()}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <Clock className="h-4 w-4" />
+                                                        <span>{booking.selectedTime}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <CreditCard className="h-4 w-4" />
+                                                        <span>₹{booking.amount}</span>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="mt-2">
+                                                    <span className="text-sm font-medium text-gray-900">
+                                                        {booking.serviceType}
+                                                    </span>
                                                 </div>
                                             </div>
-
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                                <div className="bg-gray-50 p-3 rounded-lg">
-                                                    <p className="text-sm font-medium text-gray-500">Service</p>
-                                                    <p className="font-medium">{booking.serviceType}</p>
-                                                </div>
-                                                <div className="bg-gray-50 p-3 rounded-lg">
-                                                    <p className="text-sm font-medium text-gray-500">Amount</p>
-                                                    <p className="font-medium text-green-600">₹{booking.amount}</p>
-                                                </div>
-                                                <div className="bg-gray-50 p-3 rounded-lg">
-                                                    <p className="text-sm font-medium text-gray-500">Date</p>
-                                                    <p className="font-medium">{new Date(booking.selectedDate).toLocaleDateString()}</p>
-                                                </div>
-                                                <div className="bg-gray-50 p-3 rounded-lg">
-                                                    <p className="text-sm font-medium text-gray-500">Time</p>
-                                                    <p className="font-medium">{booking.selectedTime}</p>
-                                                </div>
+                                            
+                                            <div className="flex items-center gap-2">
+                                                <Eye className="h-5 w-5 text-gray-400" />
                                             </div>
-
-                                            <div className="text-sm text-gray-600">
-                                                <p><strong>Transaction ID:</strong> {booking.paymentDetails.transactionId}</p>
-                                                <p><strong>WhatsApp:</strong> +91 {booking.contactDetails.whatsappNumber}</p>
-                                                <p><strong>Submitted:</strong> {new Date(booking.createdAt).toLocaleString()}</p>
-                                                <p><strong>Source:</strong> {booking.studentId?.name ? 'LMS User' : 'Website User'}</p>
-                                            </div>
-                                        </div>
-
-                                        {/* Action Button */}
-                                        <div className="lg:w-1/3 flex items-center justify-center">
-                                            <button
-                                                onClick={() => {
-                                                    // Handle view details - you can implement modal here
-                                                    console.log('View booking details:', booking);
-                                                }}
-                                                className="w-full bg-blue-600 text-white py-3.5 px-6 rounded-lg hover:bg-blue-700 transition-all transform hover:scale-[1.02] shadow-md hover:shadow-lg font-semibold flex items-center justify-center gap-2"
-                                            >
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                </svg>
-                                                View Details
-                                            </button>
                                         </div>
                                     </div>
-                                </div>
-                            ))
+                                ))}
+                            </div>
                         )}
+                    </div>
+                )}
+
+                {/* Booking Details Modal */}
+                {showBookingModal && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                        <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                            {/* Modal Header */}
+                            <div className="flex items-center justify-between p-6 border-b">
+                                <h2 className="text-xl font-semibold text-gray-900">Booking Details</h2>
+                                <button
+                                    onClick={() => {
+                                        setShowBookingModal(false);
+                                        setSelectedBooking(null);
+                                    }}
+                                    className="text-gray-400 hover:text-gray-600"
+                                >
+                                    <X className="h-6 w-6" />
+                                </button>
+                            </div>
+
+                            {/* Modal Content */}
+                            <div className="p-6">
+                                {loadingBookingDetails ? (
+                                    <div className="flex items-center justify-center py-8">
+                                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                                    </div>
+                                ) : selectedBooking ? (
+                                    <div className="space-y-6">
+                                        {/* Customer Information */}
+                                        <div>
+                                            <h3 className="text-lg font-medium text-gray-900 mb-3">Customer Information</h3>
+                                            <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div className="flex items-center gap-2">
+                                                        <User className="h-4 w-4 text-gray-500" />
+                                                        <span className="font-medium">Name:</span>
+                                                        <span>{selectedBooking.customerInfo.name}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <MessageCircle className="h-4 w-4 text-gray-500" />
+                                                        <span className="font-medium">WhatsApp:</span>
+                                                        <span>{selectedBooking.customerInfo.whatsappNumber}</span>
+                                                    </div>
+                                                </div>
+
+                                                {/* Astrology Details Section */}
+                                                {selectedBooking.customerInfo.dateOfBirth && (
+                                                    <div className="border-t pt-3 mt-3">
+                                                        <h4 className="font-medium text-gray-900 mb-2">Astrology Details</h4>
+                                                        <div className="grid grid-cols-1 gap-2 text-sm">
+                                                            <div className="flex justify-between">
+                                                                <span className="font-medium">Date of Birth:</span>
+                                                                <span>{new Date(selectedBooking.customerInfo.dateOfBirth).toLocaleDateString('en-US', {
+                                                                    year: 'numeric',
+                                                                    month: 'long',
+                                                                    day: 'numeric'
+                                                                })}</span>
+                                                            </div>
+                                                            <div className="flex justify-between">
+                                                                <span className="font-medium">Time of Birth:</span>
+                                                                <span>{selectedBooking.customerInfo.timeOfBirth}</span>
+                                                            </div>
+                                                            <div className="flex justify-between">
+                                                                <span className="font-medium">Place of Birth:</span>
+                                                                <span>{selectedBooking.customerInfo.placeOfBirth}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Session Information */}
+                                        <div>
+                                            <h3 className="text-lg font-medium text-gray-900 mb-3">Session Details</h3>
+                                            <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                                                <div><span className="font-medium">Service:</span> {selectedBooking.sessionInfo.service}</div>
+                                                <div><span className="font-medium">Date:</span> {new Date(selectedBooking.sessionInfo.date).toLocaleDateString('en-US', {
+                                                    weekday: 'long',
+                                                    year: 'numeric',
+                                                    month: 'long',
+                                                    day: 'numeric'
+                                                })}</div>
+                                                <div><span className="font-medium">Time:</span> {selectedBooking.sessionInfo.time}</div>
+                                                <div><span className="font-medium">Duration:</span> {selectedBooking.sessionInfo.duration}</div>
+                                                <div><span className="font-medium">Amount:</span> ₹{selectedBooking.sessionInfo.amount}</div>
+                                            </div>
+                                        </div>
+
+                                        {/* Payment Information */}
+                                        <div>
+                                            <h3 className="text-lg font-medium text-gray-900 mb-3">Payment Details</h3>
+                                            <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                                                <div><span className="font-medium">Transaction ID:</span> {selectedBooking.paymentInfo.transactionId}</div>
+                                                {selectedBooking.paymentInfo.screenshotUrl && (
+                                                    <div>
+                                                        <span className="font-medium block mb-2">Payment Screenshot:</span>
+                                                        <img
+                                                            src={selectedBooking.paymentInfo.screenshotUrl}
+                                                            alt="Payment Screenshot"
+                                                            className="w-full max-w-md mx-auto rounded-lg border shadow-sm"
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Mark as Read Checkbox */}
+                                        {/* <div className="flex items-center justify-center pt-4 border-t">
+                                            <label className="flex items-center gap-3 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedBooking.isRead || false}
+                                                    onChange={async (e) => {
+                                                        const isChecked = e.target.checked;
+                                                        try {
+                                                            const token = await getToken();
+                                                            await axios.patch(`${backendUrl}/api/booking/mark-read/${selectedBooking._id}`, {}, {
+                                                                headers: { Authorization: `Bearer ${token}` }
+                                                            });
+                                                            
+                                                            setSelectedBooking(prev => ({
+                                                                ...prev,
+                                                                isRead: isChecked
+                                                            }));
+                                                            
+                                                            setPendingBookings(prev => 
+                                                                prev.map(b => b._id === selectedBooking._id ? {...b, isRead: isChecked} : b)
+                                                            );
+                                                            
+                                                            toast.success(isChecked ? 'Marked as read' : 'Marked as unread');
+                                                        } catch (error) {
+                                                            console.error('Error updating read status:', error);
+                                                            toast.error('Error updating read status');
+                                                            e.target.checked = !isChecked;
+                                                        }
+                                                    }}
+                                                    className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                                                />
+                                                <span className="text-lg font-medium text-gray-900">
+                                                    Mark as read
+                                                </span>
+                                            </label>
+                                        </div> */}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-8">
+                                        <p className="text-gray-500">Failed to load booking details</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>
